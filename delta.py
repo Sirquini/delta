@@ -12,8 +12,9 @@ def calculate_lubs(lattice):
     n = len(lattice)
     result = [[0 for i in range(n)] for j in range(n)]
     for i in range(n):
-        for j in range(n):
+        for j in range(i+1):
             result[i][j] = pair_lub(i, j, lattice)
+            result[j][i] = result[i][j]
     return result
 
 def calculate_glbs(lattice):
@@ -22,8 +23,9 @@ def calculate_glbs(lattice):
     n = len(lattice)
     result = [[0 for i in range(n)] for j in range(n)]
     for i in range(n):
-        for j in range(n):
+        for j in range(i+1):
             result[i][j] = pair_glb(i, j, lattice)
+            result[j][i] = result[i][j]
     return result
 
 def pair_lub(a, b, lattice):
@@ -58,21 +60,21 @@ def pair_glb(a, b, lattice):
                 greatest = lb
         return greatest
 
-def lub(t):
-    """ Least Upper Bound of list t.
+def lub(iterable):
+    """ Least Upper Bound of `iterable`.
         Using global variable `LUBs`
     """
     r = 0
-    for i in t:
+    for i in iterable:
         r = LUBs[r][i]
     return r
 
-def glb(t):
-    """ Greatest Lower Bound of list t.
+def glb(iterable):
+    """ Greatest Lower Bound of `iterable`.
         Using global variable `GLBs`
     """
     r = len(GLBs) - 1
-    for i in t:
+    for i in iterable:
         r = GLBs[r][i]
     return r
 

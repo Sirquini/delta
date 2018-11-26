@@ -1,0 +1,131 @@
+===== LATTICES =====
+
+---- M5 ----
+
+C = 5
+
+l = [[0 for i in range(C)] for i in range(C)]
+	for i in range(C):
+		l[i][0] = 1
+		l[i][i] = 1
+		l[C-1][i] = 1
+
+---- N5 ----
+
+C = 5
+
+l = [[0 for i in range(C)] for i in range(C)]
+	for i in range(C):
+		l[i][0] = 1
+		l[i][i] = 1
+		l[C-1][i] = 1
+	l[3][1] = 1
+
+---- Kite ----
+
+C = 4
+
+l = [[0 for i in range(C)] for i in range(C)]
+	for i in range(C):
+		l[i][0] = 1
+		l[i][i] = 1
+		l[C-1][i] = 1
+
+---- Square ----
+
+C = 9
+
+l = [[0 for i in range(C)] for i in range(C)]
+	for i in range(C):
+		l[C-1][i] = 1
+		l[i][0] = 1
+		l[i][i] = 1
+	l[3][1] = 1
+	l[4][1] = 1
+	l[4][2] = 1
+	l[5][2] = 1
+	l[6][1] = 1
+	l[6][2] = 1
+	l[6][3] = 1
+	l[6][4] = 1
+	l[7][1] = 1
+	l[7][2] = 1
+	l[7][4] = 1
+	l[7][5] = 1
+
+---- NO-Lattice ----
+
+C = 6
+
+l = [[0 for i in range(C)] for i in range(C)]
+	for i in range(C):
+		l[i][0] = 1
+		l[i][i] = 1
+		l[C-1][i] = 1
+	l[3][1] = 1
+	l[3][2] = 1
+	l[4][1] = 1
+	l[4][2] = 1
+
+--- Power set 3 elements ---
+
+C = 8
+
+l = [[0 for i in range(C)] for i in range(C)]
+	for i in range(C):
+		l[i][0] = 1
+		l[i][i] = 1
+		l[C-1][i] = 1
+	l[4][1] = 1
+	l[4][2] = 1
+	l[5][1] = 1
+	l[5][3] = 1
+	l[6][2] = 1
+	l[6][3] = 1
+
+--- Power set 4 elements ---
+
+C = 16
+
+l = [[0 for i in range(C)] for i in range(C)]
+	for i in range(C):
+		l[i][0] = 1
+		l[i][i] = 1
+		l[C-1][i] = 1
+	l[5][1] = 1
+	l[5][2] = 1
+	l[6][1] = 1
+	l[6][3] = 1
+	l[7][1] = 1
+	l[7][4] = 1
+	l[8][2] = 1
+	l[8][3] = 1
+	l[9][2] = 1
+	l[9][4] = 1
+	l[10][3] = 1
+	l[10][4] = 1
+	l[11][5] = 1
+	l[11][6] = 1
+	l[11][8] = 1
+	l[11][1] = 1
+	l[11][2] = 1
+	l[11][3] = 1
+	l[12][5] = 1
+	l[12][7] = 1
+	l[12][9] = 1
+	l[12][1] = 1
+	l[12][2] = 1
+	l[12][4] = 1
+	l[13][6] = 1
+	l[13][7] = 1
+	l[13][10] = 1
+	l[13][1] = 1
+	l[13][3] = 1
+	l[13][4] = 1
+	l[14][8] = 1
+	l[14][9] = 1
+	l[14][10] = 1
+	l[14][2] = 1
+	l[14][3] = 1
+	l[14][4] = 1
+

@@ -504,14 +504,14 @@ def run_test_case(fn, lattice, test_functions):
     fn_time = time() - fn_time
     return fn_time, result
 
-def run(lattice, verbose = True, test_functions = None):
+def run(lattice, verbose = False, test_functions = None, fns_file = None, save_functions = False):
     """ Run all the delta algorithms against a `lattice`
         and test_functions, either random or explicit, and
         present the results.
     """
     # Used to calculate elapsed time
     start_time = time()
-    # Number of iterations to test
+    # Number of iterations to test (test-cases)
     n = 1
 
     preproc_time = time()
@@ -523,23 +523,29 @@ def run(lattice, verbose = True, test_functions = None):
     preproc_time = time() - preproc_time
 
     func_gen_time = time()
-    # Read space functions from a file
-    try:
-        # TODO: Make the file dynamic
-        # TODO: Make the file location relative to the script
-        # TODO: Validate that the space functions from the file correspond to the lattice
-        with open("sf_square.in") as f:
-            space_functions = eval(f.read())
-            print("[i] Reading space functions from file")
-    except IOError:
-        print("[w] File not found, generating space functions...")
+
+    if fns_file is None:
         # Calculate space functions.
         space_functions = generate_functions(len(lattice))
+    else:
+        # Read space functions from a file
+        try:
+            # TODO: Make the file location relative to the script
+            # TODO: Validate that the space functions from the file correspond to the lattice
+            with open(fns_file) as f:
+                space_functions = eval(f.read())
+                print("[i] Reading space functions from file")
+                save_functions = False # Nothing changed no need to overwrite
+        except IOError:
+            print("[w] File not found, generating space functions...")
+            # Calculate space functions.
+            space_functions = generate_functions(len(lattice))
 
     validation_time = time()
     # By default use from 1 to `n`, inclusive, random test_functions
     # if none are provided, or check the test_functions
     # provided by the user.
+    # Note: It was "temporarily" changed to signify the number of test-cases.
     if test_functions is None:
         n = 1000
     else:
@@ -561,8 +567,10 @@ def run(lattice, verbose = True, test_functions = None):
     print("________________________________________________________________\n")
 
     # Save the space functions to a file
-    # with open("sf_power_3.in", "w") as f:
-    #     f.write(repr(space_functions))
+    if save_functions and fns_file is not None:
+        with open(fns_file, "w") as f:
+            f.write(repr(space_functions))
+            print("[i] Writing space functions to file `{}`".format(fns_file))
 
     # Used for showing the aggregate results at the end
     delta_results = [
@@ -575,6 +583,8 @@ def run(lattice, verbose = True, test_functions = None):
     ]
 
     for i in range(1, n+1):
+        # i is the number of test-functions per test-case
+        # TODO: Remove hard-coded value.
         i = 4
         # Get some space functions at random or use given ones
         if test_functions is None:
@@ -669,11 +679,21 @@ def run(lattice, verbose = True, test_functions = None):
     print("\nTotal time:", elapsed_time)
 
 # Call with one argument to generate random test cases
-# run(lattice, verbose = True, test_functions = None)
+# run(lattice, verbose = True, test_functions = None, fns_file = None, save_functions = False)
 # 
-# verbose: - If True (default) show each test case and the individual results,
-#          and a summary of failing test cases
-#          - If False, only show failing test cases (faster)
-# test_functions: The list of space-functions to test against. By default
-#          if no test_functions are provided, then generate random test_functions.
-run(lattice_square(), False)
+# verbose:
+#   - If True, show each test case and the individual results,
+#     and a summary of failing test cases
+#   - If False (default), only show failing test cases (faster)
+# test_functions:
+#     The list of space-functions to test against. By default
+#     if no test_functions are provided, then generate random test_functions.
+# fns_file:
+#     String with the file path to read and/or write calculated
+#     space-functions for `lattice`. 
+# save_functions:
+#   - If True, write the generated space-function to `fns_file` except when the
+#     space-functions were read from the same file.
+#   - If False (default), do not write the generated space-functions anywhere.
+
+run(lattice_square(), fns_file="sf_square.in")

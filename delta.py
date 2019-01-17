@@ -195,15 +195,13 @@ def delta_ast2(lattice, functions):
         return delta_ast2(lattice, [delta_ast(lattice, functions[:2])] + functions[2:])
 
 def partition_helper(lattice, functions, c):
-    # TODO: Define for len(functions) != log_2 k, where k is a natural number.
     n = len(lattice)
     fn_num = len(functions)
     if fn_num == 1:
         return functions[0][c]
     else:
         mid_point = fn_num // 2
-        pairs = (pair for pair in product(range(n), repeat=2) if lattice[lub(pair)][c] == 1)
-        return glb(lub((partition_helper(lattice, functions[:mid_point], a), partition_helper(lattice, functions[mid_point:], b))) for (a, b) in pairs)
+        return glb(lub((partition_helper(lattice, functions[:mid_point], a), partition_helper(lattice, functions[mid_point:], imply(a, c)))) for a in range(n) if lattice[c][a] == 1)
 
 def delta_ast_partition(lattice, functions):
     """ Calculate Delta* for a set of `functions` over a `lattice`
@@ -585,7 +583,7 @@ def run(lattice, verbose = False, test_functions = None, fns_file = None, save_f
     for i in range(1, n+1):
         # i is the number of test-functions per test-case
         # TODO: Remove hard-coded value.
-        i = 4
+        i = 3
         # Get some space functions at random or use given ones
         if test_functions is None:
             sample_functions = random.sample(range(len(space_functions)), i)

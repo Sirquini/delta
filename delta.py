@@ -149,6 +149,10 @@ def apply_fns(functions, elements):
     """
     return [functions[i][elem] for i, elem in enumerate(elements)]
 
+# ######################################
+# Delta functions for lattice operations
+# ######################################
+
 def delta_ast(lattice, functions):
     """ Calculate Delta* for a set of `functions` over a `lattice`.
     """
@@ -189,6 +193,24 @@ def delta_ast2(lattice, functions):
         return delta_ast_imply(lattice, functions)
     else:
         return delta_ast2(lattice, [delta_ast(lattice, functions[:2])] + functions[2:])
+
+def partition_helper(lattice, functions, c):
+    # TODO: Define for len(functions) != log_2 k, where k is a natural number.
+    n = len(lattice)
+    fn_num = len(functions)
+    if fn_num == 1:
+        return functions[0][c]
+    else:
+        mid_point = fn_num // 2
+        pairs = (pair for pair in product(range(n), repeat=2) if lattice[lub(pair)][c] == 1)
+        return glb(lub((partition_helper(lattice, functions[:mid_point], a), partition_helper(lattice, functions[mid_point:], b))) for (a, b) in pairs)
+
+def delta_ast_partition(lattice, functions):
+    """ Calculate Delta* for a set of `functions` over a `lattice`
+        partitioning the set of functions.
+    """
+    return [partition_helper(lattice, functions, c) for c in range(len(lattice))]
+
 
 def check_fn_with_pair(fn, pair):
     a, b = pair
@@ -298,6 +320,7 @@ def delta_n(lattice, space_functions, functions):
     valid_functions = (fn for fn in space_functions if all(map(lambda elem: leq_fn(lattice, fn, elem), functions)))
     return list(max_fn(lattice, (fn for fn in valid_functions)))
 
+# ######################################
 
 # ######################################
 # Utility functions for lattice creation
@@ -470,6 +493,7 @@ class Delta(Enum):
     AST2 = 2
     FOO_OLD = 3
     FOO = 4
+    AST_PART = 5
 
 def run_test_case(fn, lattice, test_functions):
     """ Runs `fn` with a `lattice` and an iterable of `test_functions`.
@@ -547,10 +571,11 @@ def run(lattice, verbose = True, test_functions = None):
         TestResults("Delta*(may fail)"),
         TestResults("Delta_foo(old)"),
         TestResults("Delta_foo"),
+        TestResults("Delta*(PART)")
     ]
 
     for i in range(1, n+1):
-        i = 2
+        i = 4
         # Get some space functions at random or use given ones
         if test_functions is None:
             sample_functions = random.sample(range(len(space_functions)), i)
@@ -598,6 +623,12 @@ def run(lattice, verbose = True, test_functions = None):
 
             print("Delta_0:         ", [glb(i) for i in zip(*sample_functions)])
 
+        fn_time, delta_ast_part_result = run_test_case(delta_ast_partition, lattice, sample_functions)
+        delta_results[Delta.AST_PART.value].update_times(fn_time, n)
+        if verbose:
+            print("Delta*(PART):    ", repr(delta_ast_part_result))
+            print("-- Time:", fn_time, "\n")
+
         fn_time = time()
         delta_max_result = delta_n(lattice, space_functions, sample_functions)
         fn_time = time() - fn_time
@@ -607,7 +638,7 @@ def run(lattice, verbose = True, test_functions = None):
             print("-- Without preprocessing:", fn_time + func_gen_time)
             print("----------------------------------------------------------------\n")
 
-        # If any of the algorithms failed to compute delta, add the error.
+        # If any of the algorithms failed to compute delta, add the error and context.
         if delta_ast_result != delta_max_result:
             delta_results[Delta.AST.value].errors.append((sample_functions, delta_ast_result, delta_max_result))
         if delta_ast_imply_result is not None and delta_ast_imply_result != delta_max_result:
@@ -618,6 +649,8 @@ def run(lattice, verbose = True, test_functions = None):
             delta_results[Delta.FOO_OLD.value].errors.append((sample_functions, delta_foo_old_result, delta_max_result))
         if delta_foo_result != delta_max_result:
             delta_results[Delta.FOO.value].errors.append((sample_functions, delta_foo_result, delta_max_result))
+        if delta_ast_part_result != delta_max_result:
+            delta_results[Delta.AST_PART.value].errors.append((sample_functions, delta_ast_part_result, delta_max_result))
 
     print("Number of iterations:", n)
 

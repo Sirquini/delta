@@ -693,5 +693,5 @@ def run(lattice, verbose = False, test_functions = None, fns_file = None, save_f
 #   - If True, write the generated space-function to `fns_file` except when the
 #     space-functions were read from the same file.
 #   - If False (default), do not write the generated space-functions anywhere.
-
-run(lattice_square(), fns_file="sf_square.in")
+if __name__ == "__main__":
+    run(lattice_square(), fns_file="sf_square.in")

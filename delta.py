@@ -102,7 +102,6 @@ def imply(a, b):
     """
     return IMPLs[a][b]
 
-
 def generate_functions(n):
     """ Generate an list of space functions, based on a lattice
         of `n` elements.
@@ -120,6 +119,16 @@ def is_distributive(fn, test_pairs):
         if fn[lub([t0, t1])] != lub([fn[t0], fn[t1]]):
             return False
     return True
+
+def is_lattice(lattice):
+    """ Returns True if `lattice` is a valid lattice.
+    """
+    N = len(lattice)
+	# List of pairs, leaving them as an iterator allows us
+    # to short-circuit and not generate all the pairs if
+    # the lattice is not valid.
+    lt = combinations(range(N),2)
+    return all(lub(pair) != -1 for pair in lt)
 
 def leq_fn(lattice, fn1, fn2):
     """ Returns True if the function `fn1` < `fn2`
@@ -208,7 +217,6 @@ def delta_ast_partition(lattice, functions):
         partitioning the set of functions.
     """
     return [partition_helper(lattice, functions, c) for c in range(len(lattice))]
-
 
 def check_fn_with_pair(fn, pair):
     a, b = pair
@@ -504,7 +512,7 @@ def run_test_case(fn, lattice, test_functions):
 
 def run(lattice, verbose = False, test_functions = None, fns_file = None, save_functions = False):
     """ Run all the delta algorithms against a `lattice`
-        and test_functions, either random or explicit, and
+        and `test_functions`, either random or explicit, and
         present the results.
     """
     # Used to calculate elapsed time
@@ -520,15 +528,18 @@ def run(lattice, verbose = False, test_functions = None, fns_file = None, save_f
     IMPLs = calculate_implications(lattice)
     preproc_time = time() - preproc_time
 
-    func_gen_time = time()
+    # Valitdate the input lattice
+    if not is_lattice(lattice):
+        print("[e] Invalid lattice, aborting execution!")
+        return
 
+    func_gen_time = time()
     if fns_file is None:
         # Calculate space functions.
         space_functions = generate_functions(len(lattice))
     else:
         # Read space functions from a file
         try:
-            # TODO: Make the file location relative to the script
             # TODO: Validate that the space functions from the file correspond to the lattice
             with open(fns_file) as f:
                 space_functions = eval(f.read())
@@ -538,7 +549,7 @@ def run(lattice, verbose = False, test_functions = None, fns_file = None, save_f
             print("[w] File not found, generating space functions...")
             # Calculate space functions.
             space_functions = generate_functions(len(lattice))
-
+    
     validation_time = time()
     # By default use from 1 to `n`, inclusive, random test_functions
     # if none are provided, or check the test_functions

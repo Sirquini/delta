@@ -103,7 +103,7 @@ def imply(a, b):
     return IMPLs[a][b]
 
 def generate_functions(n):
-    """ Generate an list of space functions, based on a lattice
+    """ Generate a list of space functions, based on a lattice
         of `n` elements.
     """
     test_pairs = list(combinations(range(n), 2))

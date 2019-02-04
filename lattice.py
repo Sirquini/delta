@@ -8,6 +8,12 @@ from delta import calculate_lubs, calculate_glbs
 
 class Lattice:
     def __init__(self, implies_matrix):
+        """ Create a lattice from a matrix of implications,
+            where implies_matrix[a][b] == 1, means that a >= b.
+
+            Also calculates the corresponding matrix of
+            least upper bounds and greatest lower bounds.
+        """
         self.lattice = implies_matrix
         self.lubs = calculate_lubs(implies_matrix)
         self.glbs = calculate_glbs(implies_matrix)
@@ -15,10 +21,12 @@ class Lattice:
         self._space_functions = None
 
     def __len__(self):
+        """ Returns the number of nodes in the lattice.
+        """
         return len(self.lattice)
 
     def is_lattice(self):
-        """ Returns True if `lattice` is a valid lattice.
+        """ Returns True if the lattice is valid.
         """
         N = len(self)
         # List of pairs, leaving them as an iterator allows us

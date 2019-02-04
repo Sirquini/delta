@@ -1,5 +1,77 @@
 import random
-from delta import calculate_lubs
+from itertools import combinations, product
+from delta import calculate_lubs, calculate_glbs
+
+# ######################################
+# Lattice object, functions, and methods
+# ######################################
+
+class Lattice:
+    def __init__(self, implies_matrix):
+        self.lattice = implies_matrix
+        self.lubs = calculate_lubs(implies_matrix)
+        self.glbs = calculate_glbs(implies_matrix)
+        # Lazy attributes
+        self._space_functions = None
+
+    def __len__(self):
+        return len(self.lattice)
+
+    def is_lattice(self):
+        """ Returns True if `lattice` is a valid lattice.
+        """
+        N = len(self)
+        # List of pairs, leaving them as an iterator allows us
+        # to short-circuit and not generate all the pairs if
+        # the lattice is not valid.
+        lt = combinations(range(N),2)
+        return all(self.lubs[a][b] != -1 for (a, b) in lt)
+    
+    def is_fn_distributive(self, fn, test_pairs):
+        """ Checks if a given function `fn` is distributive.
+        """
+        fn = (0,) + fn
+        for i in range(len(test_pairs)):
+            t0 = test_pairs[i][0]
+            t1 = test_pairs[i][1]
+            if fn[self.lub([t0, t1])] != self.lub([fn[t0], fn[t1]]):
+                return False
+        return True
+
+    def lub(self, iterable):
+        """ Least Upper Bound of `iterable`.
+        """
+        r = 0
+        for i in iterable:
+            r = self.lubs[r][i]
+        return r
+
+    def glb(self, iterable):
+        """ Greatest Lower Bound of `iterable`.
+        """
+        r = len(self) - 1
+        for i in iterable:
+            r = self.glbs[r][i]
+        return r
+
+    def space_functions(self):
+        """ Return the list of space functions, based on the lattice.
+
+            The actual `space_functions` are only generated once, feel free
+            to call this method multiple times.
+        """
+        if self._space_functions is None:
+           self._space_functions = self._generate_space_functions()
+        return self._space_functions
+
+    def _generate_space_functions(self):
+        """ Generate a list of space functions, based on the lattice.
+        """
+        N = len(self)
+        test_pairs = tuple(combinations(range(N), 2))
+        return [(0,) + fn for fn in product(range(N), repeat=N-1) if self.is_fn_distributive(fn, test_pairs)]
+
+# ######################################
 
 # ######################################
 # Helper functions for papers' algorithm
@@ -7,7 +79,8 @@ from delta import calculate_lubs
 
 # This may be the wrong way of calculating S. ¯\_(ツ)_/¯
 def S(i):
-    """ Probably the log_2 of i aproximated to the ceilling, but allways >= 2."""
+    """ Probably the log_2 of i aproximated to the ceilling, but allways >= 2.
+    """
     j = 2
     while j * j < i:
         j += 1
@@ -252,7 +325,35 @@ def process_file(path, gen_functions=False):
       dictionary, prefixed with "sf_" and ending in ".in".
       If False (default), do nothing else.
     """
-    pass 
+    # Read list of matrices from a file.
+    try:
+        with open(path) as f:
+            matrices = eval(f.read())
+            print("[i] Reading input matrices from file")
+    except IOError:
+        print("[w] File not found `{}`, aborting processing...".format(path))
+        return []
+
+
+    # We have a list of matrices to process.
+    # Prepare the dictionary for conversion.
+    print("[i] Converting matrices")
+    results = {hash(tuple(matrix)):lattice_from_joins(matrix) for submatrices in matrices for matrix in submatrices}
+
+    # Now we create the corresponding space
+    # functions for each matrix and save it
+    # in a file.
+    if gen_functions:
+        for key, value in results.items():
+            lattice = Lattice(value)
+            space_functions = lattice.space_functions()
+            # Save the space functions to a file
+            fns_file = "sf_{}.in".format(key)
+            with open(fns_file, "w") as f:
+                print("[i] Writing space functions to file `{}`".format(fns_file))
+                f.write(repr(space_functions))
+
+    return results
 
 if __name__ == "__main__":
     lattice = gen_lattice(6)
@@ -268,4 +369,6 @@ if __name__ == "__main__":
     print("\nSageMath random:")
     print(lattice2)
     print_table(lattice_from_lower_covers(lattice2))
+
+    process_file("/Users/sysres/Desktop/distributive_lattices.py", True)
 

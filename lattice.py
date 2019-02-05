@@ -39,12 +39,7 @@ class Lattice:
         """ Checks if a given function `fn` is distributive.
         """
         fn = (0,) + fn
-        for i in range(len(test_pairs)):
-            t0 = test_pairs[i][0]
-            t1 = test_pairs[i][1]
-            if fn[self.lub([t0, t1])] != self.lub([fn[t0], fn[t1]]):
-                return False
-        return True
+        return all(fn[self.lubs[t0][t1]] == self.lubs[fn[t0]][fn[t1]] for t0, t1 in test_pairs)
 
     def lub(self, iterable):
         """ Least Upper Bound of `iterable`.
@@ -333,6 +328,8 @@ def process_file(path, gen_functions=False):
       dictionary, prefixed with "sf_" and ending in ".in".
       If False (default), do nothing else.
     """
+    import os
+
     # Read list of matrices from a file.
     try:
         with open(path) as f:
@@ -353,30 +350,22 @@ def process_file(path, gen_functions=False):
     # in a file.
     if gen_functions:
         for key, value in results.items():
-            lattice = Lattice(value)
-            space_functions = lattice.space_functions()
-            # Save the space functions to a file
             fns_file = "sf_{}.in".format(key)
-            with open(fns_file, "w") as f:
-                print("[i] Writing space functions to file `{}`".format(fns_file))
-                f.write(repr(space_functions))
+            # Check if the file already exists
+            if os.path.isfile(fns_file):
+                print("[i] File `{}` already exist. Skipping.".format(fns_file))
+            else:
+                print("[i] Generating space functions for `{}` ({} nodes)".format(key, len(value)))
+                lattice = Lattice(value)
+                space_functions = lattice.space_functions()
+                # Save the space functions to a file
+                with open(fns_file, "w") as f:
+                    f.write(repr(space_functions))
+                    print("[i] Saved space functions in file `{}`".format(fns_file))
 
     return results
 
 if __name__ == "__main__":
-    lattice = gen_lattice(6)
-    lattice2 = random_lattice(6, 0.5)
-    clattice = lattice_from_joins(lattice)
-    print("Paper random:")
-    print_table(lattice)
-    if lattice == calculate_lubs(clattice):
-        print("Conversion: \x1b[32mvalid\x1b[0m")
-    else:
-        print("Conversion: \x1b[31minvalid\x1b[0m")
-    print_table(clattice)
-    print("\nSageMath random:")
-    print(lattice2)
-    print_table(lattice_from_covers(lattice2))
 
     process_file("/Users/sysres/Desktop/distributive_lattices.py", True)
 

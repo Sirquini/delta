@@ -189,9 +189,9 @@ def lattice_from_joins(joins):
 
 def explode(lc_all):
     r"""
-    Helper function for lattice_from_lower_covers.
+    Helper function for lattice_from_covers.
     Returns a list of all elements below each element `i` of the list of
-    lower covers `lc_all`.
+    covers `lc_all`.
     """
     n = len(lc_all)
     result = [set(i) for i in lc_all]
@@ -208,7 +208,7 @@ def explode(lc_all):
     return result
             
 
-def lattice_from_lower_covers(lc_all):
+def lattice_from_covers(lc_all):
     """ Converts a list of lower covers of a lattice to an implies matrix
     """
     N = len(lc_all)
@@ -234,7 +234,7 @@ def print_table(table):
 
 def random_lattice(n, p):
     r"""
-    Return a random lattice.
+    Return a random lattice as a list of covers.
     
     Algorithm taken from:
     https://github.com/sagemath/sage/blob/master/src/sage/combinat/posets/poset_examples.py
@@ -376,7 +376,7 @@ if __name__ == "__main__":
     print_table(clattice)
     print("\nSageMath random:")
     print(lattice2)
-    print_table(lattice_from_lower_covers(lattice2))
+    print_table(lattice_from_covers(lattice2))
 
     process_file("/Users/sysres/Desktop/distributive_lattices.py", True)
 

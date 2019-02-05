@@ -495,11 +495,9 @@ class TestResults:
 
 class Delta(Enum):
     AST = 0
-    AST_IMPLY = 1
-    AST2 = 2
-    FOO_OLD = 3
-    FOO = 4
-    AST_PART = 5
+    FOO = 1
+    AST_PART = 2
+    N = 3
 
 def run_test_case(fn, lattice, test_functions):
     """ Runs `fn` with a `lattice` and an iterable of `test_functions`.
@@ -584,11 +582,9 @@ def run(lattice, verbose = False, test_functions = None, fns_file = None, save_f
     # Used for showing the aggregate results at the end
     delta_results = [
         TestResults("Delta*"),
-        TestResults("Delta*(IMPLYs)"),
-        TestResults("Delta*(may fail)"),
-        TestResults("Delta_foo(old)"),
         TestResults("Delta_foo"),
-        TestResults("Delta*(PART)")
+        TestResults("Delta*(PART)"),
+        TestResults("Delta_n(Preprocessed)")
     ]
 
     for i in range(1, n+1):
@@ -614,25 +610,6 @@ def run(lattice, verbose = False, test_functions = None, fns_file = None, save_f
         if verbose:
             print("Delta*:          ", repr(delta_ast_result))
             print("-- Time:", fn_time, "\n")
-        
-        fn_time, delta_ast_imply_result = run_test_case(delta_ast_imply, lattice, sample_functions)
-        delta_results[Delta.AST_IMPLY.value].update_times(fn_time, n)
-        if verbose:
-            print("Delta*(IMPLYs):  ", repr(delta_ast_imply_result))
-            print("-- Time:   ", fn_time)
-            print("-- Without preprocessing:", fn_time + preproc_time, "\n")
-
-        fn_time, delta_ast2_result = run_test_case(delta_ast2, lattice, sample_functions)
-        delta_results[Delta.AST2.value].update_times(fn_time, n)
-        if verbose:
-            print("Delta*(may fail):", repr(delta_ast2_result))
-            print("-- Time:", fn_time, "\n")
-
-        fn_time, delta_foo_old_result = run_test_case(delta_foo_old, lattice, sample_functions)
-        delta_results[Delta.FOO_OLD.value].update_times(fn_time, n)
-        if verbose:
-            print("Delta_foo(old):  ", repr(delta_foo_old_result))
-            print("-- Time:", fn_time, "\n")
 
         fn_time, delta_foo_result = run_test_case(delta_foo, lattice, sample_functions)
         delta_results[Delta.FOO.value].update_times(fn_time, n)
@@ -651,6 +628,7 @@ def run(lattice, verbose = False, test_functions = None, fns_file = None, save_f
         fn_time = time()
         delta_max_result = delta_n(lattice, space_functions, sample_functions)
         fn_time = time() - fn_time
+        delta_results[Delta.N.value].update_times(fn_time, n)
         if verbose:
             print("Delta:           ", repr(delta_max_result))
             print("-- With preprocessing:   ", fn_time)
@@ -660,12 +638,6 @@ def run(lattice, verbose = False, test_functions = None, fns_file = None, save_f
         # If any of the algorithms failed to compute delta, add the error and context.
         if delta_ast_result != delta_max_result:
             delta_results[Delta.AST.value].errors.append((sample_functions, delta_ast_result, delta_max_result))
-        if delta_ast_imply_result is not None and delta_ast_imply_result != delta_max_result:
-            delta_results[Delta.AST_IMPLY.value].errors.append((sample_functions, delta_ast_imply_result, delta_max_result))
-        if delta_ast2_result != delta_max_result:
-            delta_results[Delta.AST2.value].errors.append((sample_functions, delta_ast2_result, delta_max_result))
-        if delta_foo_old_result != delta_max_result:
-            delta_results[Delta.FOO_OLD.value].errors.append((sample_functions, delta_foo_old_result, delta_max_result))
         if delta_foo_result != delta_max_result:
             delta_results[Delta.FOO.value].errors.append((sample_functions, delta_foo_result, delta_max_result))
         if delta_ast_part_result != delta_max_result:
@@ -686,6 +658,7 @@ def run(lattice, verbose = False, test_functions = None, fns_file = None, save_f
 
     elapsed_time = time() - start_time
     print("\nTotal time:", elapsed_time)
+    return {"result": delta_results, "total": elapsed_time}
 
 # Call with one argument to generate random test cases
 # run(lattice, verbose = True, test_functions = None, fns_file = None, save_functions = False)

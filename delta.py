@@ -503,7 +503,7 @@ def run_test_case(fn, lattice, test_functions):
     fn_time = time() - fn_time
     return fn_time, result
 
-def run(lattice, verbose = False, test_functions = None, fns_file = None, save_functions = False):
+def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functions = 2, fns_file = None, save_functions = False):
     """ Run all the delta algorithms against a `lattice` and `test_functions`,
         either random or explicit, and present the results.
 
@@ -517,6 +517,12 @@ def run(lattice, verbose = False, test_functions = None, fns_file = None, save_f
         - test_functions:
             The list of space-functions to test against. By default, if no 
             `test_functions` are provided, generates random test_functions.
+        - n_tests:
+            If `test_functions` is None, indicates the number of test to run
+            with `n_functions` random test functions.
+        - n_functions:
+            If `test_funtions` is None, indicates how many random test
+            functions to use per test-case.
         - fns_file:
             String with the file path to read and/or write calculated
             space-functions for `lattice`. 
@@ -546,7 +552,7 @@ def run(lattice, verbose = False, test_functions = None, fns_file = None, save_f
     # Valitdate the input lattice
     if not is_lattice(lattice):
         print("[e] Invalid lattice, aborting execution!")
-        return
+        return {}
 
     func_gen_time = time()
     if fns_file is None:
@@ -571,7 +577,7 @@ def run(lattice, verbose = False, test_functions = None, fns_file = None, save_f
     # provided by the user.
     # Note: It was "temporarily" changed to signify the number of test-cases.
     if test_functions is None:
-        n = 1000
+        n = n_tests
     else:
         valid_input = True
         for fn in test_functions:
@@ -580,7 +586,7 @@ def run(lattice, verbose = False, test_functions = None, fns_file = None, save_f
                 valid_input = False
         if not valid_input:
             print ("[e] Aborting execution!")
-            return
+            return {}
     
     validation_time = time() - validation_time
     func_gen_time = time() - func_gen_time - validation_time
@@ -604,13 +610,10 @@ def run(lattice, verbose = False, test_functions = None, fns_file = None, save_f
         TestResults("Delta_n(Preprocessed)")
     ]
 
-    for i in range(1, n+1):
-        # i is the number of test-functions per test-case
-        # TODO: Remove hard-coded value.
-        i = 3
+    for _ in range(n):
         # Get some space functions at random or use given ones
         if test_functions is None:
-            sample_functions = random.sample(range(len(space_functions)), i)
+            sample_functions = random.sample(range(len(space_functions)), n_functions)
             sample_functions = [space_functions[j] for j in sample_functions]
         else:
             sample_functions = [fn for fn in test_functions if fn in space_functions]
@@ -675,9 +678,54 @@ def run(lattice, verbose = False, test_functions = None, fns_file = None, save_f
 
     elapsed_time = time() - start_time
     print("\nTotal time:", elapsed_time)
-    return {"result": delta_results, "total": elapsed_time}
+    return {"result": delta_results, "total": elapsed_time, "sf": len(space_functions), "sf_gen_time": func_gen_time, "preproc": preproc_time}
+
+def write_test_results_csv(path, results):
+    """ Write the test results in a file for later usage
+        in a CSV file.
+    """
+    import csv
+    # Collect headers
+    if results:
+        headers = ["Lattice", "Nodes", "Space Functions", "Test Functions", "Elapsed Time", "Preprocessing Time"]
+        for delta_result in results[0]["result"]:
+            headers.append("{} Average".format(delta_result.name))
+            headers.append("{} Min".format(delta_result.name))
+            headers.append("{} Max".format(delta_result.name))
+            headers.append("{} Errors".format(delta_result.name))
+        with open(path, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(headers)
+            for result in results:
+                row = [
+                    result["lattice"],
+                    result["nodes"],
+                    result["sf"],
+                    result["functions"],
+                    result["total"],
+                    result["preproc"]
+                ]
+                for delta_result in result["result"]:
+                    row.append(delta_result.avg_time)
+                    row.append(delta_result.min_time)
+                    row.append(delta_result.max_time)
+                    row.append(len(delta_result.errors))
+                writer.writerow(row)
+        print("[i] Generated CSV file `{}`".format(path))
 
 if __name__ == "__main__":
-    # Call with one argument to generate random test cases
-    # run(lattice, verbose = True, test_functions = None, fns_file = None, save_functions = False)
-    run(lattice_square(), fns_file="sf_square.in")
+    from lattice import process_file
+    # Read the lattice to test from
+    lattices = process_file("distributive_lattices.py")
+    results = []
+    for key, lattice in lattices.items():
+        print("* Using lattice `{}` ({} nodes)".format(key, len(lattice)))
+        for i in range(2, 6):
+            print("Test Functions:", i)
+            result = run(lattice, n_functions=i, fns_file="sf_{}.in".format(key))
+            result["lattice"] = key
+            result["nodes"] = len(lattice)
+            result["functions"] = i
+            results.append(result)
+        print("================================================================\n")
+    write_test_results_csv("full_results.csv", results)

@@ -271,7 +271,7 @@ def delta_foo(lattice, functions):
     # Here candidate_function[c] = glb(fn_1[c], fn_2[c], ..., fn_n[c]), for fn_i in functions
     candidate_function = [glb(i) for i in zip(*functions)]
     # One sub-list of good pairs for each element in the lattice
-    good_pairs = [[] for i in range(n)]
+    good_pairs = [[] for _ in range(n)]
     # All conflicting tuples form all elements in the lattice
     conflict_tuples = set()
     # All pairs of elements in the lattice that lost support
@@ -279,10 +279,13 @@ def delta_foo(lattice, functions):
     # Calculate all initial conflicts in the candidate solution
     for pair in combinations(range(n), 2):
         w = lub(pair)
+        u, v = pair
         if check_fn_with_pair(candidate_function, pair):
             good_pairs[w].append(pair)
-        else:
+        elif lattice[lub((candidate_function[u], candidate_function[v]))][candidate_function[w]] != 1:
             conflict_tuples.add((pair, w))
+        else:
+            falling_pairs.add(pair)
 
     while len(conflict_tuples) != 0:
         (u, v), w = conflict_tuples.pop()
@@ -294,24 +297,21 @@ def delta_foo(lattice, functions):
             x, y = falling_pairs.pop()
             z = lub((x, y))
             
-            old_mapped_x = candidate_function[x]
-            old_mapped_y = candidate_function[y]
-
-            candidate_function[x], candidate_function[y] = (glb((candidate_function[x], candidate_function[z])), glb((candidate_function[y], candidate_function[z])))
-            
-            if old_mapped_x != candidate_function[x]:
+            if candidate_function[x] != glb((candidate_function[x], candidate_function[z])):
                 falling_pairs = falling_pairs | set(good_pairs[x])
                 good_pairs[x].clear()
             
-            if old_mapped_y != candidate_function[y]:
+            if candidate_function[y] != glb((candidate_function[y], candidate_function[z])):
                 falling_pairs = falling_pairs | set(good_pairs[y])
                 good_pairs[y].clear()
-            
-            if check_fn_with_pair(candidate_function, (x, y)):
+
+            candidate_function[x] = glb((candidate_function[x], candidate_function[z]))
+            candidate_function[y] = glb((candidate_function[y], candidate_function[z]))
+
+            if lub((candidate_function[x], candidate_function[y])) == candidate_function[z]:
                 good_pairs[z].append((x, y))
             else:
                 conflict_tuples.add(((x, y), z))
-        good_pairs[w].append((u, v))
     return candidate_function
 
 def delta_n(lattice, space_functions, functions):
@@ -713,7 +713,7 @@ def write_test_results_csv(path, results):
                 writer.writerow(row)
         print("[i] Generated CSV file `{}`".format(path))
 
-if __name__ == "__main__":
+def run_full_tests():
     from lattice import process_file
     # Read the lattice to test from
     lattices = process_file("distributive_lattices.py")
@@ -729,3 +729,21 @@ if __name__ == "__main__":
             results.append(result)
         print("================================================================\n")
     write_test_results_csv("full_results.csv", results)
+
+def run_square():
+    run(lattice_square(), n_tests=1000, n_functions=4, fns_file="sf_square.in")
+
+def run_failling_foo():
+    from lattice import process_file
+    
+    lattices = process_file("distributive_lattices.py")
+    test_functions = [(0, 5, 3, 7, 3, 3, 7, 7),
+        (0, 7, 7, 7, 0, 7, 7, 7),
+        (0, 3, 4, 7, 6, 6, 7, 7)]
+
+    run(lattices[4698136515449058355], test_functions=test_functions, fns_file="sf_4698136515449058355.in")
+
+if __name__ == "__main__":
+    # run_full_tests()
+    # run_square()
+    run_failling_foo()

@@ -337,7 +337,7 @@ def process_file(path, gen_functions=False):
             print("[i] Reading input matrices from file")
     except IOError:
         print("[w] File not found `{}`, aborting processing...".format(path))
-        return []
+        return {}
 
 
     # We have a list of matrices to process.

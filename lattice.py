@@ -367,5 +367,5 @@ def process_file(path, gen_functions=False):
 
 if __name__ == "__main__":
 
-    process_file("/Users/sysres/Desktop/distributive_lattices.py", True)
+    process_file("distributive_lattices.py", True)
 

@@ -113,12 +113,7 @@ def is_distributive(fn, test_pairs):
     """ Checks if a given function `fn` is distributive.
     """
     fn = (0,) + fn
-    for i in range(len(test_pairs)):
-        t0 = test_pairs[i][0]
-        t1 = test_pairs[i][1]
-        if fn[lub([t0, t1])] != lub([fn[t0], fn[t1]]):
-            return False
-    return True
+    return all(fn[lub([t0, t1])] == lub([fn[t0], fn[t1]]) for t0, t1 in test_pairs)
 
 def is_lattice(lattice):
     """ Returns True if `lattice` is a valid lattice.
@@ -509,9 +504,31 @@ def run_test_case(fn, lattice, test_functions):
     return fn_time, result
 
 def run(lattice, verbose = False, test_functions = None, fns_file = None, save_functions = False):
-    """ Run all the delta algorithms against a `lattice`
-        and `test_functions`, either random or explicit, and
-        present the results.
+    """ Run all the delta algorithms against a `lattice` and `test_functions`,
+        either random or explicit, and present the results.
+
+        INPUTS:
+        - lattice:
+            Matrix representing The lattice to test against.
+        - verbose:
+            - If True, show each test case and the individual results,
+            and a summary of failing test cases
+            - If False (default), only show failing test cases (faster)
+        - test_functions:
+            The list of space-functions to test against. By default, if no 
+            `test_functions` are provided, generates random test_functions.
+        - fns_file:
+            String with the file path to read and/or write calculated
+            space-functions for `lattice`. 
+        - save_functions:
+            - If True, write the generated space-function to `fns_file` except
+            when the space-functions were read from the same file.
+            - If False (default), do not write the generated space-functions
+            anywhere.
+        
+        OUPUTS:
+            Returns a dictionary with the acumulated results, including timings
+            and failures (if any).
     """
     # Used to calculate elapsed time
     start_time = time()
@@ -660,22 +677,7 @@ def run(lattice, verbose = False, test_functions = None, fns_file = None, save_f
     print("\nTotal time:", elapsed_time)
     return {"result": delta_results, "total": elapsed_time}
 
-# Call with one argument to generate random test cases
-# run(lattice, verbose = True, test_functions = None, fns_file = None, save_functions = False)
-# 
-# verbose:
-#   - If True, show each test case and the individual results,
-#     and a summary of failing test cases
-#   - If False (default), only show failing test cases (faster)
-# test_functions:
-#     The list of space-functions to test against. By default
-#     if no test_functions are provided, then generate random test_functions.
-# fns_file:
-#     String with the file path to read and/or write calculated
-#     space-functions for `lattice`. 
-# save_functions:
-#   - If True, write the generated space-function to `fns_file` except when the
-#     space-functions were read from the same file.
-#   - If False (default), do not write the generated space-functions anywhere.
 if __name__ == "__main__":
+    # Call with one argument to generate random test cases
+    # run(lattice, verbose = True, test_functions = None, fns_file = None, save_functions = False)
     run(lattice_square(), fns_file="sf_square.in")

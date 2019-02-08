@@ -222,7 +222,6 @@ def lattice_from_covers(lc_all):
     N = len(lc_all)
     exploded = explode(lc_all)
     lattice = [[0]*N for _ in range(N)]
-    print(exploded)
     for i in range(N):
         lattice[i][i] = 1
         for j in exploded[i]:

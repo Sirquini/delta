@@ -594,10 +594,10 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
         valid_input = True
         for fn in test_functions:
             if fn not in space_functions:
-                print("[e] Invalid Test Function found:", repr(fn))
+                print("[E] Invalid Test Function found:", repr(fn))
                 valid_input = False
         if not valid_input:
-            print ("[e] Aborting execution!")
+            print ("[E] Aborting execution!")
             return {}
     
     validation_time = time() - validation_time
@@ -615,12 +615,12 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
             print("[i] Writing space functions to file `{}`".format(fns_file))
 
     # Used for showing the aggregate results at the end
-    delta_results = [
-        TestResults("Delta*"),
-        TestResults("Delta_foo"),
-        TestResults("Delta*(PART)"),
-        TestResults("Delta_n(Preprocessed)")
-    ]
+    delta_results = {
+        Delta.AST: TestResults("Delta*"),
+        Delta.FOO: TestResults("Delta_foo"),
+        Delta.AST_PART: TestResults("Delta*(PART)"),
+        Delta.N: TestResults("Delta_n(Preprocessed)")
+    }
 
     for _ in range(n):
         # Get some space functions at random or use given ones
@@ -636,23 +636,21 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
                 print(fn)
             print("___________________________________\n")
 
-        
         fn_time, delta_ast_result = run_test_case(delta_ast, lattice, sample_functions)
-        delta_results[Delta.AST.value].update_times(fn_time, n)
+        delta_results[Delta.AST].update_times(fn_time, n)
         if verbose:
             print("Delta*:          ", repr(delta_ast_result))
             print("-- Time:", fn_time, "\n")
 
         fn_time, delta_foo_result = run_test_case(delta_foo, lattice, sample_functions)
-        delta_results[Delta.FOO.value].update_times(fn_time, n)
+        delta_results[Delta.FOO].update_times(fn_time, n)
         if verbose:
             print("Delta_foo:       ", repr(delta_foo_result))
             print("-- Time:", fn_time, "\n")
-
-            print("Delta_0:         ", [glb(i) for i in zip(*sample_functions)])
+            print("Delta_0:         ", [glb(i) for i in zip(*sample_functions)], "\n")
 
         fn_time, delta_ast_part_result = run_test_case(delta_ast_partition, lattice, sample_functions)
-        delta_results[Delta.AST_PART.value].update_times(fn_time, n)
+        delta_results[Delta.AST_PART].update_times(fn_time, n)
         if verbose:
             print("Delta*(PART):    ", repr(delta_ast_part_result))
             print("-- Time:", fn_time, "\n")
@@ -660,7 +658,7 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
         fn_time = time()
         delta_max_result = delta_n(lattice, space_functions, sample_functions)
         fn_time = time() - fn_time
-        delta_results[Delta.N.value].update_times(fn_time, n)
+        delta_results[Delta.N].update_times(fn_time, n)
         if verbose:
             print("Delta:           ", repr(delta_max_result))
             print("-- With preprocessing:   ", fn_time)
@@ -669,28 +667,28 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
 
         # If any of the algorithms failed to compute delta, add the error and context.
         if delta_ast_result != delta_max_result:
-            delta_results[Delta.AST.value].errors.append((sample_functions, delta_ast_result, delta_max_result))
+            delta_results[Delta.AST].errors.append((sample_functions, delta_ast_result, delta_max_result))
         if delta_foo_result != delta_max_result:
-            delta_results[Delta.FOO.value].errors.append((sample_functions, delta_foo_result, delta_max_result))
+            delta_results[Delta.FOO].errors.append((sample_functions, delta_foo_result, delta_max_result))
         if delta_ast_part_result != delta_max_result:
-            delta_results[Delta.AST_PART.value].errors.append((sample_functions, delta_ast_part_result, delta_max_result))
+            delta_results[Delta.AST_PART].errors.append((sample_functions, delta_ast_part_result, delta_max_result))
 
     print("Number of iterations:", n)
 
     # Show error test cases
-    for result in delta_results:
+    for result in delta_results.values():
         result.print_errors()
 
     # Show summary of results
-    for result in delta_results:
+    for result in delta_results.values():
         result.print_status()
 
-    for result in delta_results:
+    for result in delta_results.values():
         result.print_times()
 
     elapsed_time = time() - start_time
     print("\nTotal time:", elapsed_time)
-    return {"result": delta_results, "total": elapsed_time, "sf": len(space_functions), "sf_gen_time": func_gen_time, "preproc": preproc_time}
+    return {"result": delta_results.values(), "total": elapsed_time, "sf": len(space_functions), "sf_gen_time": func_gen_time, "preproc": preproc_time}
 
 def write_test_results_csv(name, results):
     """ Write the test results in a file for later usage
@@ -757,7 +755,21 @@ def run_failling_foo():
 
     run(lattices[4698136515449058355], test_functions=test_functions, fns_file=relative_path("generated", "sf_4698136515449058355.in"))
 
+    test_functions = [(0, 0, 7, 7, 9, 9, 9, 9, 7, 9),
+        (0, 3, 3, 3, 1, 3, 3, 3, 9, 9),
+        (0, 7, 1, 7, 8, 8, 9, 9, 7, 9)]
+
+    run(lattices[-286441500945297568], test_functions=test_functions, fns_file=relative_path("generated", "sf_-286441500945297568.in"))
+
+def run_random():
+    from lattice import random_lattice, lattice_from_covers
+    covers = random_lattice(8, 0.95)
+    print("* Using lattice: ", covers)
+    lattice = lattice_from_covers(covers)
+    run(lattice)
+
 if __name__ == "__main__":
-    run_full_tests()
+    # run_full_tests()
     # run_square()
-    # run_failling_foo()
+    # run_random()
+    run_failling_foo()

@@ -736,7 +736,7 @@ def run_full_tests():
         print("* Using lattice `{}` ({} nodes)".format(key, len(lattice)))
         for i in range(2, 6):
             print("Test Functions:", i)
-            result = run(lattice, n_functions=i, fns_file="sf_{}.in".format(key))
+            result = run(lattice, n_functions=i, fns_file=relative_path("generated", "sf_{}.in".format(key)))
             result["lattice"] = key
             result["nodes"] = len(lattice)
             result["functions"] = i
@@ -758,6 +758,6 @@ def run_failling_foo():
     run(lattices[4698136515449058355], test_functions=test_functions, fns_file=relative_path("generated", "sf_4698136515449058355.in"))
 
 if __name__ == "__main__":
-    # run_full_tests()
+    run_full_tests()
     # run_square()
-    run_failling_foo()
+    # run_failling_foo()

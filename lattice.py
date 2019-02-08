@@ -1,6 +1,19 @@
+import os
 import random
 from itertools import combinations, product
 from delta import calculate_lubs, calculate_glbs
+
+# ######################################
+#  Utility functions for handling files
+# ######################################
+
+def get_relative_path(file_path):
+    """ Returns the absolute path for a file relative to the script
+    """
+    dirname = os.path.dirname(__file__)
+    return os.path.join(dirname, file_path)
+
+# ######################################
 
 # ######################################
 # Lattice object, functions, and methods
@@ -328,11 +341,10 @@ def process_file(path, gen_functions=False):
       dictionary, prefixed with "sf_" and ending in ".in".
       If False (default), do nothing else.
     """
-    import os
 
     # Read list of matrices from a file.
     try:
-        with open(path) as f:
+        with open(get_relative_path(path)) as f:
             matrices = eval(f.read())
             print("[i] Reading input matrices from file")
     except IOError:
@@ -349,19 +361,21 @@ def process_file(path, gen_functions=False):
     # functions for each matrix and save it
     # in a file.
     if gen_functions:
+        generated_dir = "generated"
         for key, value in results.items():
-            fns_file = "sf_{}.in".format(key)
+            fns_file_name = os.path.join(generated_dir, "sf_{}.in".format(key))
+            fns_file_path = get_relative_path(fns_file_name)
             # Check if the file already exists
-            if os.path.isfile(fns_file):
-                print("[i] File `{}` already exist. Skipping.".format(fns_file))
+            if os.path.isfile(fns_file_path):
+                print("[i] File `{}` already exist. Skipping.".format(fns_file_name))
             else:
                 print("[i] Generating space functions for `{}` ({} nodes)".format(key, len(value)))
                 lattice = Lattice(value)
                 space_functions = lattice.space_functions()
                 # Save the space functions to a file
-                with open(fns_file, "w") as f:
+                with open(fns_file_path, "w") as f:
                     f.write(repr(space_functions))
-                    print("[i] Saved space functions in file `{}`".format(fns_file))
+                    print("[i] Saved space functions in file `{}`".format(fns_file_name))
 
     return results
 

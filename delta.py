@@ -1,5 +1,5 @@
 import random
-
+import os
 from enum import Enum
 from itertools import product
 from itertools import combinations
@@ -433,6 +433,18 @@ def print_fn_table_check(fn, verbose=False):
 
 # ######################################
 
+# ######################################
+#  Utility functions for handling files
+# ######################################
+
+def relative_path(path, *paths):
+    """ Returns the absolute path for a file relative to the script
+    """
+    dirname = os.path.dirname(__file__)
+    return os.path.join(dirname, path, *paths)
+
+# ######################################
+
 class TestResults:
     """Utility class to group and show algorithms' results"""
     
@@ -680,7 +692,7 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
     print("\nTotal time:", elapsed_time)
     return {"result": delta_results, "total": elapsed_time, "sf": len(space_functions), "sf_gen_time": func_gen_time, "preproc": preproc_time}
 
-def write_test_results_csv(path, results):
+def write_test_results_csv(name, results):
     """ Write the test results in a file for later usage
         in a CSV file.
     """
@@ -693,7 +705,7 @@ def write_test_results_csv(path, results):
             headers.append("{} Min".format(delta_result.name))
             headers.append("{} Max".format(delta_result.name))
             headers.append("{} Errors".format(delta_result.name))
-        with open(path, 'w', newline='') as f:
+        with open(relative_path("generated", name), 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(headers)
             for result in results:
@@ -711,13 +723,15 @@ def write_test_results_csv(path, results):
                     row.append(delta_result.max_time)
                     row.append(len(delta_result.errors))
                 writer.writerow(row)
-        print("[i] Generated CSV file `{}`".format(path))
+        print("[i] Generated CSV file `{}`".format(name))
 
 def run_full_tests():
     from lattice import process_file
+    from datetime import datetime
     # Read the lattice to test from
     lattices = process_file("distributive_lattices.py")
     results = []
+    start_time = datetime.now().strftime("%Y-%m-%d-%H%M")
     for key, lattice in lattices.items():
         print("* Using lattice `{}` ({} nodes)".format(key, len(lattice)))
         for i in range(2, 6):
@@ -728,10 +742,10 @@ def run_full_tests():
             result["functions"] = i
             results.append(result)
         print("================================================================\n")
-    write_test_results_csv("full_results.csv", results)
+    write_test_results_csv(relative_path("results", "results-{}.csv".format(start_time)), results)
 
 def run_square():
-    run(lattice_square(), n_tests=1000, n_functions=4, fns_file="sf_square.in")
+    run(lattice_square(), n_tests=1000, n_functions=4, fns_file=relative_path("generated","sf_square.in"))
 
 def run_failling_foo():
     from lattice import process_file
@@ -741,7 +755,7 @@ def run_failling_foo():
         (0, 7, 7, 7, 0, 7, 7, 7),
         (0, 3, 4, 7, 6, 6, 7, 7)]
 
-    run(lattices[4698136515449058355], test_functions=test_functions, fns_file="sf_4698136515449058355.in")
+    run(lattices[4698136515449058355], test_functions=test_functions, fns_file=relative_path("generated", "sf_4698136515449058355.in"))
 
 if __name__ == "__main__":
     # run_full_tests()

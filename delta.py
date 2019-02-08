@@ -705,7 +705,7 @@ def write_test_results_csv(name, results):
             headers.append("{} Min".format(delta_result.name))
             headers.append("{} Max".format(delta_result.name))
             headers.append("{} Errors".format(delta_result.name))
-        with open(relative_path("generated", name), 'w', newline='') as f:
+        with open(relative_path("results", name), 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(headers)
             for result in results:
@@ -723,7 +723,7 @@ def write_test_results_csv(name, results):
                     row.append(delta_result.max_time)
                     row.append(len(delta_result.errors))
                 writer.writerow(row)
-        print("[i] Generated CSV file `{}`".format(name))
+        print("[i] Generated CSV file {}".format(name))
 
 def run_full_tests():
     from lattice import process_file
@@ -742,7 +742,7 @@ def run_full_tests():
             result["functions"] = i
             results.append(result)
         print("================================================================\n")
-    write_test_results_csv(relative_path("results", "results-{}.csv".format(start_time)), results)
+    write_test_results_csv("results-{}.csv".format(start_time), results)
 
 def run_square():
     run(lattice_square(), n_tests=1000, n_functions=4, fns_file=relative_path("generated","sf_square.in"))

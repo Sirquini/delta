@@ -291,7 +291,7 @@ def delta_foo(lattice, functions):
         (u, v), w = conflict_tuples.pop()
         candidate_function[w] = lub((candidate_function[u], candidate_function[v]))
         falling_pairs = falling_pairs | set(good_pairs[w])
-        good_pairs[w].clear()
+        good_pairs[w] = [(u,v)]
 
         while len(falling_pairs) != 0:
             x, y = falling_pairs.pop()
@@ -312,6 +312,10 @@ def delta_foo(lattice, functions):
                 good_pairs[z].append((x, y))
             else:
                 conflict_tuples.add(((x, y), z))
+        # # Check that all good_pairs remain good. Sanity Check. Performance penalty.
+        # for sublist in good_pairs:
+        #     for bad_pair in filter(lambda p: LUBs[candidate_function[p[0]]][candidate_function[p[1]]] != candidate_function[LUBs[p[0]][p[1]]], sublist):
+        #         conflict_tuples.add((bad_pair, LUBs[bad_pair[0]][bad_pair[1]]))
     return candidate_function
 
 def delta_n(lattice, space_functions, functions):
@@ -760,6 +764,30 @@ def run_failling_foo():
         (0, 7, 1, 7, 8, 8, 9, 9, 7, 9)]
 
     run(lattices[-286441500945297568], test_functions=test_functions, fns_file=relative_path("generated", "sf_-286441500945297568.in"))
+
+    test_functions = [(0, 5, 6, 6, 8, 3, 8, 8, 8, 8),
+        (0, 5, 4, 9, 9, 9, 9, 9, 9, 9),
+        (0, 8, 5, 8, 8, 0, 5, 8, 8, 8),
+        (0, 2, 8, 8, 8, 7, 8, 8, 8, 8),
+        (0, 5, 4, 9, 9, 5, 9, 5, 9, 9)]
+
+    run(lattices[8013726431884705816], test_functions=test_functions, fns_file=relative_path("generated", "sf_8013726431884705816.in"))
+    
+    test_functions = [(0, 8, 1, 8, 9, 5, 7, 8, 8, 9),
+        (0, 4, 1, 4, 4, 9, 9, 9, 9, 9),
+        (0, 6, 9, 9, 9, 3, 9, 8, 9, 9),
+        (0, 7, 8, 8, 9, 1, 8, 7, 8, 9),
+        (0, 1, 0, 1, 1, 9, 9, 9, 9, 9)]
+
+    run(lattices[8013726431884705816], test_functions=test_functions, fns_file=relative_path("generated", "sf_8013726431884705816.in"))
+
+    test_functions = [(0, 4, 8, 9, 9, 9, 9, 9, 9, 9),
+        (0, 4, 7, 9, 9, 8, 8, 9, 9, 9),
+        (0, 2, 4, 4, 9, 1, 4, 3, 4, 9),
+        (0, 7, 4, 9, 9, 8, 9, 8, 9, 9),
+        (0, 5, 2, 6, 8, 4, 4, 9, 9, 9)]
+
+    run(lattices[8013726431884705816], test_functions=test_functions, fns_file=relative_path("generated", "sf_8013726431884705816.in"))
 
 def run_random():
     from lattice import random_lattice, lattice_from_covers

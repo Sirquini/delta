@@ -199,18 +199,25 @@ def delta_ast2(lattice, functions):
         return delta_ast2(lattice, [delta_ast(lattice, functions[:2])] + functions[2:])
 
 def partition_helper(lattice, functions, c):
+    cached_result = HELPER_CACHE[c].get(tuple(functions))
+    if cached_result is not None:
+        return cached_result
     n = len(lattice)
     fn_num = len(functions)
     if fn_num == 1:
         return functions[0][c]
     else:
         mid_point = fn_num // 2
-        return glb(lub((partition_helper(lattice, functions[:mid_point], a), partition_helper(lattice, functions[mid_point:], imply(a, c)))) for a in range(n) if lattice[c][a] == 1)
+        result = glb(lub((partition_helper(lattice, functions[:mid_point], a), partition_helper(lattice, functions[mid_point:], imply(a, c)))) for a in range(n) if lattice[c][a] == 1)
+        HELPER_CACHE[c][tuple(functions)] = result
+        return result
 
 def delta_ast_partition(lattice, functions):
     """ Calculate Delta* for a set of `functions` over a `lattice`
         partitioning the set of functions.
     """
+    global HELPER_CACHE
+    HELPER_CACHE = [{} for _ in range(len(lattice))]
     return [partition_helper(lattice, functions, c) for c in range(len(lattice))]
 
 def check_fn_with_pair(fn, pair):

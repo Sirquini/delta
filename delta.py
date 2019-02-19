@@ -212,6 +212,20 @@ def partition_helper(lattice, functions, c):
         HELPER_CACHE[c][tuple(functions)] = result
         return result
 
+def partition_helper_optimized(lattice, functions, first, last, c):
+    cached_result = HELPER_CACHE[c].get((first, last))
+    if cached_result is not None:
+        return cached_result
+    n = len(lattice)
+    fn_num = last - first
+    if fn_num == 1:
+        return functions[first][c]
+    else:
+        mid_point = first + fn_num // 2
+        result = glb(lub((partition_helper_optimized(lattice, functions, first, mid_point, a), partition_helper_optimized(lattice, functions, mid_point, last, imply(a, c)))) for a in range(n) if lattice[c][a] == 1)
+        HELPER_CACHE[c][(first, last)] = result
+        return result
+
 def delta_ast_partition(lattice, functions):
     """ Calculate Delta* for a set of `functions` over a `lattice`
         partitioning the set of functions.
@@ -219,6 +233,15 @@ def delta_ast_partition(lattice, functions):
     global HELPER_CACHE
     HELPER_CACHE = [{} for _ in range(len(lattice))]
     return [partition_helper(lattice, functions, c) for c in range(len(lattice))]
+
+def delta_ast_partition_b(lattice, functions):
+    """ Calculate Delta* for a set of `functions` over a `lattice`
+        partitioning the set of functions.
+    """
+    global HELPER_CACHE
+    HELPER_CACHE = [{} for _ in range(len(lattice))]
+    n = len(functions)
+    return [partition_helper_optimized(lattice, functions, 0, n, c) for c in range(len(lattice))]
 
 def check_fn_with_pair(fn, pair):
     a, b = pair
@@ -569,7 +592,8 @@ class Delta(Enum):
     FOO = 1
     FOO_B = 2
     AST_PART = 3
-    N = 4
+    AST_PART_B = 4
+    N = 5
 
 def run_test_case(fn, lattice, test_functions):
     """ Runs `fn` with a `lattice` and an iterable of `test_functions`.
@@ -682,9 +706,10 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
     # Used for showing the aggregate results at the end
     delta_results = {
         # Delta.AST: TestResults("Delta*"),
-        Delta.FOO: TestResults("Delta_foo"),
+        # Delta.FOO: TestResults("Delta_foo"),
         Delta.FOO_B: TestResults("Delta_foo(current)"),
         Delta.AST_PART: TestResults("Delta*(PART)"),
+        Delta.AST_PART_B: TestResults("Delta*(PART+OP)"),
         Delta.N: TestResults("Delta_n(Preprocessed)")
     }
 
@@ -708,11 +733,11 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
         #     print("Delta*:          ", repr(delta_ast_result))
         #     print("-- Time:", fn_time, "\n")
 
-        fn_time, delta_foo_result = run_test_case(delta_foo, lattice, sample_functions)
-        delta_results[Delta.FOO].update_times(fn_time, n)
-        if verbose:
-            print("Delta_foo:       ", repr(delta_foo_result))
-            print("-- Time:", fn_time, "\n")
+        # fn_time, delta_foo_result = run_test_case(delta_foo, lattice, sample_functions)
+        # delta_results[Delta.FOO].update_times(fn_time, n)
+        # if verbose:
+        #     print("Delta_foo:       ", repr(delta_foo_result))
+        #     print("-- Time:", fn_time, "\n")
         
         fn_time, delta_foo_b_result = run_test_case(delta_foo_b, lattice, sample_functions)
         delta_results[Delta.FOO_B].update_times(fn_time, n)
@@ -725,6 +750,12 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
         delta_results[Delta.AST_PART].update_times(fn_time, n)
         if verbose:
             print("Delta*(PART):    ", repr(delta_ast_part_result))
+            print("-- Time:", fn_time, "\n")
+
+        fn_time, delta_ast_part_b_result = run_test_case(delta_ast_partition_b, lattice, sample_functions)
+        delta_results[Delta.AST_PART_B].update_times(fn_time, n)
+        if verbose:
+            print("Delta*(PART+OP): ", repr(delta_ast_part_b_result))
             print("-- Time:", fn_time, "\n")
 
         fn_time = time()
@@ -740,12 +771,14 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
         # If any of the algorithms failed to compute delta, add the error and context.
         # if delta_ast_result != delta_max_result:
         #     delta_results[Delta.AST].errors.append((sample_functions, delta_ast_result, delta_max_result))
-        if delta_foo_result != delta_max_result:
-            delta_results[Delta.FOO].errors.append((sample_functions, delta_foo_result, delta_max_result))
+        # if delta_foo_result != delta_max_result:
+        #     delta_results[Delta.FOO].errors.append((sample_functions, delta_foo_result, delta_max_result))
         if delta_foo_b_result != delta_max_result:
             delta_results[Delta.FOO_B].errors.append((sample_functions, delta_foo_b_result, delta_max_result))
         if delta_ast_part_result != delta_max_result:
             delta_results[Delta.AST_PART].errors.append((sample_functions, delta_ast_part_result, delta_max_result))
+        if delta_ast_part_b_result != delta_max_result:
+            delta_results[Delta.AST_PART_B].errors.append((sample_functions, delta_ast_part_b_result, delta_max_result))
 
     print("Number of iterations:", n)
 

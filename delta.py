@@ -198,21 +198,7 @@ def delta_ast2(lattice, functions):
     else:
         return delta_ast2(lattice, [delta_ast(lattice, functions[:2])] + functions[2:])
 
-def partition_helper(lattice, functions, c):
-    cached_result = HELPER_CACHE[c].get(tuple(functions))
-    if cached_result is not None:
-        return cached_result
-    n = len(lattice)
-    fn_num = len(functions)
-    if fn_num == 1:
-        return functions[0][c]
-    else:
-        mid_point = fn_num // 2
-        result = glb(lub((partition_helper(lattice, functions[:mid_point], a), partition_helper(lattice, functions[mid_point:], imply(a, c)))) for a in range(n) if lattice[c][a] == 1)
-        HELPER_CACHE[c][tuple(functions)] = result
-        return result
-
-def partition_helper_optimized(lattice, functions, first, last, c):
+def partition_helper(lattice, functions, first, last, c):
     cached_result = HELPER_CACHE[c].get((first, last))
     if cached_result is not None:
         return cached_result
@@ -222,8 +208,22 @@ def partition_helper_optimized(lattice, functions, first, last, c):
         return functions[first][c]
     else:
         mid_point = first + fn_num // 2
-        result = glb(lub((partition_helper_optimized(lattice, functions, first, mid_point, a), partition_helper_optimized(lattice, functions, mid_point, last, imply(a, c)))) for a in range(n) if lattice[c][a] == 1)
+        result = glb(lub((partition_helper(lattice, functions, first, mid_point, a), partition_helper(lattice, functions, mid_point, last, imply(a, c)))) for a in range(n) if lattice[c][a] == 1)
         HELPER_CACHE[c][(first, last)] = result
+        return result
+
+def partition_helper_b(lattice, functions, first, last, c):
+    cached_result = HELPER_CACHE[c][first][last-1]
+    if cached_result is not None:
+        return cached_result
+    fn_num = last - first
+    if fn_num == 1:
+        return functions[first][c]
+    else:
+        n = len(lattice)
+        mid_point = first + fn_num // 2
+        result = glb(lub((partition_helper_b(lattice, functions, first, mid_point, a), partition_helper_b(lattice, functions, mid_point, last, imply(a, c)))) for a in range(n) if lattice[c][a] == 1)
+        HELPER_CACHE[c][first][last-1] = result
         return result
 
 def delta_ast_partition(lattice, functions):
@@ -232,16 +232,17 @@ def delta_ast_partition(lattice, functions):
     """
     global HELPER_CACHE
     HELPER_CACHE = [{} for _ in range(len(lattice))]
-    return [partition_helper(lattice, functions, c) for c in range(len(lattice))]
+    n = len(functions)
+    return [partition_helper(lattice, functions, 0, n, c) for c in range(len(lattice))]
 
 def delta_ast_partition_b(lattice, functions):
     """ Calculate Delta* for a set of `functions` over a `lattice`
         partitioning the set of functions.
     """
-    global HELPER_CACHE
-    HELPER_CACHE = [{} for _ in range(len(lattice))]
     n = len(functions)
-    return [partition_helper_optimized(lattice, functions, 0, n, c) for c in range(len(lattice))]
+    global HELPER_CACHE
+    HELPER_CACHE = [[[None] * n for _ in range(n)] for _ in range(len(lattice))]
+    return [partition_helper_b(lattice, functions, 0, n, c) for c in range(len(lattice))]
 
 def check_fn_with_pair(fn, pair):
     a, b = pair
@@ -708,8 +709,8 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
         # Delta.AST: TestResults("Delta*"),
         # Delta.FOO: TestResults("Delta_foo"),
         Delta.FOO_B: TestResults("Delta_foo(current)"),
-        Delta.AST_PART: TestResults("Delta*(PART)"),
-        Delta.AST_PART_B: TestResults("Delta*(PART+OP)"),
+        Delta.AST_PART: TestResults("Delta*(PART+O1)"),
+        Delta.AST_PART_B: TestResults("Delta*(PART+O2)"),
         Delta.N: TestResults("Delta_n(Preprocessed)")
     }
 
@@ -749,13 +750,13 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
         fn_time, delta_ast_part_result = run_test_case(delta_ast_partition, lattice, sample_functions)
         delta_results[Delta.AST_PART].update_times(fn_time, n)
         if verbose:
-            print("Delta*(PART):    ", repr(delta_ast_part_result))
+            print("Delta*(PART+O1): ", repr(delta_ast_part_result))
             print("-- Time:", fn_time, "\n")
 
         fn_time, delta_ast_part_b_result = run_test_case(delta_ast_partition_b, lattice, sample_functions)
         delta_results[Delta.AST_PART_B].update_times(fn_time, n)
         if verbose:
-            print("Delta*(PART+OP): ", repr(delta_ast_part_b_result))
+            print("Delta*(PART+O2): ", repr(delta_ast_part_b_result))
             print("-- Time:", fn_time, "\n")
 
         fn_time = time()

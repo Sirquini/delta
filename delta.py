@@ -343,6 +343,10 @@ def delta_foo(lattice, functions):
                 good_pairs[z].append((x, y))
             else:
                 conflict_tuples.add(((x, y), z))
+        # Check that all good_pairs remain good. Sanity Check. Performance penalty.
+        for sublist in good_pairs:
+            for bad_pair in filter(lambda p: LUBs[candidate_function[p[0]]][candidate_function[p[1]]] != candidate_function[LUBs[p[0]][p[1]]], sublist):
+                conflict_tuples.add((bad_pair, LUBs[bad_pair[0]][bad_pair[1]]))
     return candidate_function
 
 def delta_foo_b(lattice, functions):
@@ -355,7 +359,7 @@ def delta_foo_b(lattice, functions):
     # Here candidate_function[c] = glb(fn_1[c], fn_2[c], ..., fn_n[c]), for fn_i in functions
     candidate_function = [glb(i) for i in zip(*functions)]
     # One sub-list of good pairs for each element in the lattice
-    good_pairs = [[] for _ in range(n)]
+    good_pairs = [set() for _ in range(n)]
     # All conflicting tuples form all elements in the lattice
     conflict_tuples = set()
     # All pairs of elements in the lattice that lost support
@@ -365,7 +369,7 @@ def delta_foo_b(lattice, functions):
         w = lub(pair)
         u, v = pair
         if check_fn_with_pair(candidate_function, pair):
-            good_pairs[w].append(pair)
+            good_pairs[w].add(pair)
         elif lattice[lub((candidate_function[u], candidate_function[v]))][candidate_function[w]] != 1:
             conflict_tuples.add((pair, w))
         else:
@@ -374,26 +378,26 @@ def delta_foo_b(lattice, functions):
     while len(conflict_tuples) != 0:
         (u, v), w = conflict_tuples.pop()
         candidate_function[w] = lub((candidate_function[u], candidate_function[v]))
-        falling_pairs = falling_pairs | set(good_pairs[w])
-        good_pairs[w] = [(u,v)]
+        falling_pairs.update(good_pairs[w])
+        good_pairs[w] = set([(u, v)])
 
         while len(falling_pairs) != 0:
             x, y = falling_pairs.pop()
             z = lub((x, y))
             
             if candidate_function[x] != glb((candidate_function[x], candidate_function[z])):
-                falling_pairs = falling_pairs | set(good_pairs[x])
+                falling_pairs.update(good_pairs[x])
                 good_pairs[x].clear()
             
             if candidate_function[y] != glb((candidate_function[y], candidate_function[z])):
-                falling_pairs = falling_pairs | set(good_pairs[y])
+                falling_pairs.update(good_pairs[y])
                 good_pairs[y].clear()
 
             candidate_function[x] = glb((candidate_function[x], candidate_function[z]))
             candidate_function[y] = glb((candidate_function[y], candidate_function[z]))
 
             if lub((candidate_function[x], candidate_function[y])) == candidate_function[z]:
-                good_pairs[z].append((x, y))
+                good_pairs[z].add((x, y))
             else:
                 conflict_tuples.add(((x, y), z))
         # Check that all good_pairs remain good. Sanity Check. Performance penalty.

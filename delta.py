@@ -235,7 +235,37 @@ def delta_ast_partition_b(lattice, functions):
 
 def check_fn_with_pair(fn, pair):
     a, b = pair
-    return lub((fn[a], fn[b])) == fn[lub((a, b))]
+    return LUBs[fn[a]][fn[b]] == fn[LUBs[a][b]]
+
+def to_sets(lattice, delta, u, v, good_pairs, conflicts, cross_references, falling_pairs):
+    """ Sends pair (u, v) to the set of conflicts (C),  falling_pairs (F) or
+        good_pairs (S) according to the property that holds for the pair.
+        This functio uses the global `LUBs`.
+    """
+    w = LUBs[u][v]
+    if lattice[LUBs[delta[u]][delta[v]]][delta[w]] != 1:
+        conflicts.add(((u, v), w))
+    elif LUBs[delta[u]][delta[v]] == delta[w]:
+        good_pairs[w].add((u, v))
+        cross_references[u].add(v)
+        cross_references[v].add(u)
+    else:
+        falling_pairs.add((u, v))
+
+def check_supports(lattice, delta, u, good_pairs, conflicts, cross_references, falling_pairs):
+    """ Identifies all pairs of the form (u, x) that lost their support because of a change
+        in delta(u). It adds (u, x) to the appropiate set of conflicts (C), or
+        falling_pairs (F).
+        This functio uses the global `LUBs`.
+    """
+    while len(cross_references[u]) != 0:
+        v = cross_references[u].pop()
+        w = LUBs[u][v]
+        if LUBs[delta[u]][delta[v]] != delta[w]:
+            good_pairs[w].discard((u, v))
+            cross_references[u].discard(v)
+            cross_references[v].discard(u)
+            to_sets(lattice, delta, u, v, good_pairs, conflicts, cross_references, falling_pairs)
 
 def delta_foo(lattice, functions):
     """ Calculates Delta using Greatest Lower Bounds and then fixes the
@@ -243,55 +273,65 @@ def delta_foo(lattice, functions):
         This function makes implicit use of the globals `LUBs` and `GLBs`.
     """
     n = len(lattice)
-    # Here candidate_function[c] = glb(fn_1[c], fn_2[c], ..., fn_n[c]), for fn_i in functions
-    candidate_function = [glb(i) for i in zip(*functions)]
-    # One sub-list of good pairs for each element in the lattice
-    good_pairs = [[] for _ in range(n)]
-    # All conflicting tuples form all elements in the lattice
-    conflict_tuples = set()
-    # All pairs of elements in the lattice that lost support
+    # Here delta[c] = glb(fn_1[c], fn_2[c], ..., fn_n[c]), for fn_i in functions
+    delta = [glb(i) for i in zip(*functions)]
+    # (S) One sub-list of good pairs for each element in the lattice
+    good_pairs = [set() for _ in range(n)]
+    # (C) All conflicting tuples form all elements in the lattice
+    conflicts = set()
+    # (R) Used for cross-refencing elements in the good_pairs list
+    cross_references = [set() for _ in range(n)]
+    # (F) All pairs of elements in the lattice that lost support
     falling_pairs = set()
     # Calculate all initial conflicts in the candidate solution
-    for pair in combinations(range(n), 2):
-        w = lub(pair)
-        u, v = pair
-        if check_fn_with_pair(candidate_function, pair):
-            good_pairs[w].append(pair)
-        elif lattice[lub((candidate_function[u], candidate_function[v]))][candidate_function[w]] != 1:
-            conflict_tuples.add((pair, w))
+    for u, v in combinations(range(n), 2):
+        to_sets(lattice, delta, u, v, good_pairs, conflicts, cross_references, falling_pairs)
+
+    while len(conflicts) != 0:
+        (u, v), w = conflicts.pop()
+        if lattice[LUBs[delta[u]][delta[v]]][delta[w]] != 1:
+            delta[w] = lub((delta[u], delta[v]))
+            falling_pairs.update(good_pairs[w])
+            good_pairs[w] = set([(u, v)])
+
+            check_supports(lattice, delta, w, good_pairs, conflicts, cross_references, falling_pairs)
+            cross_references[u].add(v)
+            cross_references[v].add(u)   
         else:
-            falling_pairs.add(pair)
-
-    while len(conflict_tuples) != 0:
-        (u, v), w = conflict_tuples.pop()
-        candidate_function[w] = lub((candidate_function[u], candidate_function[v]))
-        falling_pairs = falling_pairs | set(good_pairs[w])
-        good_pairs[w] = [(u, v)]
-
+            to_sets(lattice, delta, u, v, good_pairs, conflicts, cross_references, falling_pairs)
+        
         while len(falling_pairs) != 0:
             x, y = falling_pairs.pop()
             z = lub((x, y))
             
-            if candidate_function[x] != glb((candidate_function[x], candidate_function[z])):
-                falling_pairs = falling_pairs | set(good_pairs[x])
-                good_pairs[x].clear()
-            
-            if candidate_function[y] != glb((candidate_function[y], candidate_function[z])):
-                falling_pairs = falling_pairs | set(good_pairs[y])
-                good_pairs[y].clear()
-
-            candidate_function[x] = glb((candidate_function[x], candidate_function[z]))
-            candidate_function[y] = glb((candidate_function[y], candidate_function[z]))
-
-            if lub((candidate_function[x], candidate_function[y])) == candidate_function[z]:
-                good_pairs[z].append((x, y))
+            if lattice[delta[z]][LUBs[delta[x]][delta[y]]] == 1:
+                to_sets(lattice, delta, x, y, good_pairs, conflicts, cross_references, falling_pairs)
             else:
-                conflict_tuples.add(((x, y), z))
-        # Check that all good_pairs remain good. Sanity Check. Performance penalty.
-        for sublist in good_pairs:
-            for bad_pair in filter(lambda p: LUBs[candidate_function[p[0]]][candidate_function[p[1]]] != candidate_function[LUBs[p[0]][p[1]]], sublist):
-                conflict_tuples.add((bad_pair, LUBs[bad_pair[0]][bad_pair[1]]))
-    return candidate_function
+                if delta[x] != glb((delta[x], delta[z])):
+                    delta[x] = glb((delta[x], delta[z]))
+                    falling_pairs.update(good_pairs[x])
+                    for u, v in good_pairs[x]:
+                        cross_references[u].add(v)
+                        cross_references[v].add(u)
+                    good_pairs[x].clear()
+                    check_supports(lattice, delta, x, good_pairs, conflicts, cross_references, falling_pairs)
+                
+                if delta[y] != glb((delta[y], delta[z])):
+                    delta[y] = glb((delta[y], delta[z]))
+                    falling_pairs.update(good_pairs[y])
+                    for u, v in good_pairs[y]:
+                        cross_references[u].add(v)
+                        cross_references[v].add(u)
+                    good_pairs[y].clear()
+                    check_supports(lattice, delta, y, good_pairs, conflicts, cross_references, falling_pairs)
+
+                if lub((delta[x], delta[y])) == delta[z]:
+                    good_pairs[z].add((x, y))
+                    cross_references[x].add(y)
+                    cross_references[y].add(x)
+                else:
+                    conflicts.add(((x, y), z))
+    return delta
 
 def delta_foo_b(lattice, functions):
     """ Calculates Delta using Greatest Lower Bounds and then fixes the
@@ -655,7 +695,7 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
     # Used for showing the aggregate results at the end
     delta_results = {
         # Delta.AST: TestResults("Delta*"),
-        # Delta.FOO: TestResults("Delta_foo"),
+        Delta.FOO: TestResults("Delta_foo(FEB28)"),
         Delta.FOO_B: TestResults("Delta_foo(current)"),
         # Delta.AST_PART: TestResults("Delta*(PART+O1)"),
         Delta.AST_PART_B: TestResults("Delta*(PART+O2)"),
@@ -682,11 +722,11 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
         #     print("Delta*:          ", repr(delta_ast_result))
         #     print("-- Time:", fn_time, "\n")
 
-        # fn_time, delta_foo_result = run_test_case(delta_foo, lattice, sample_functions)
-        # delta_results[Delta.FOO].update_times(fn_time, n)
-        # if verbose:
-        #     print("Delta_foo:       ", repr(delta_foo_result))
-        #     print("-- Time:", fn_time, "\n")
+        fn_time, delta_foo_result = run_test_case(delta_foo, lattice, sample_functions)
+        delta_results[Delta.FOO].update_times(fn_time, n)
+        if verbose:
+            print("Delta_foo:       ", repr(delta_foo_result))
+            print("-- Time:", fn_time, "\n")
         
         fn_time, delta_foo_b_result = run_test_case(delta_foo_b, lattice, sample_functions)
         delta_results[Delta.FOO_B].update_times(fn_time, n)
@@ -720,8 +760,8 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
         # If any of the algorithms failed to compute delta, add the error and context.
         # if delta_ast_result != delta_max_result:
         #     delta_results[Delta.AST].errors.append((sample_functions, delta_ast_result, delta_max_result))
-        # if delta_foo_result != delta_max_result:
-        #     delta_results[Delta.FOO].errors.append((sample_functions, delta_foo_result, delta_max_result))
+        if delta_foo_result != delta_max_result:
+            delta_results[Delta.FOO].errors.append((sample_functions, delta_foo_result, delta_max_result))
         if delta_foo_b_result != delta_max_result:
             delta_results[Delta.FOO_B].errors.append((sample_functions, delta_foo_b_result, delta_max_result))
         # if delta_ast_part_result != delta_max_result:

@@ -187,17 +187,6 @@ def delta_ast_imply(lattice, functions):
             delta[c] = glb((lub((fn[0][i], fn[1][imply(i, c)])) for i in range(n) if lattice[c][i] == 1 for fn in fns))
         return delta
 
-def delta_ast2(lattice, functions):
-    """ Calculate Delta* for a set of `functions` over a `lattice`.
-    """
-    fn_num = len(functions)
-    if fn_num == 1:
-        return functions[0]
-    elif fn_num == 2:
-        return delta_ast_imply(lattice, functions)
-    else:
-        return delta_ast2(lattice, [delta_ast(lattice, functions[:2])] + functions[2:])
-
 def partition_helper(lattice, functions, first, last, c):
     cached_result = HELPER_CACHE[c].get((first, last))
     if cached_result is not None:
@@ -247,51 +236,6 @@ def delta_ast_partition_b(lattice, functions):
 def check_fn_with_pair(fn, pair):
     a, b = pair
     return lub((fn[a], fn[b])) == fn[lub((a, b))]
-
-def delta_foo_old(lattice, functions):
-    """ Calculates Delta using Greatest Lower Bounds and then fixes the
-        resulting function until its a valid space-function.
-        This function makes implicit use of the globals `LUBs` and `GLBs`.
-    """
-    n = len(lattice)
-    # Here candidate_function[c] = glb(fn_1[c], fn_2[c], ..., fn_n[c]), for fn_i in functions
-    candidate_function = [glb(i) for i in zip(*functions)]
-    # One sub-list of good pairs for each element in the lattice
-    good_pairs = [[] for i in range(n)]
-    # All conflicting tuples form all elements in the lattice
-    conflict_tuples = set()
-    # Calculate all initial conflicts in the candidate solution
-    for pair in combinations(range(n), 2):
-        w = lub(pair)
-        if check_fn_with_pair(candidate_function, pair):
-            good_pairs[w].append(pair)
-        else:
-            conflict_tuples.add((pair, w))
-
-    while len(conflict_tuples) != 0:
-        (u, v), w = conflict_tuples.pop()
-        candidate_function[w] = lub((candidate_function[u], candidate_function[v]))
-        
-        for x, y in good_pairs[w]:
-            candidate_function[x] = glb((candidate_function[x], candidate_function[w]))
-            candidate_function[y] = glb((candidate_function[y], candidate_function[w]))
-            
-            conflict_tuples = conflict_tuples | set(product(good_pairs[x], (x,)))
-            conflict_tuples = conflict_tuples | set(product(good_pairs[y], (y,)))
-
-            good_pairs[x].clear()
-            good_pairs[y].clear()
-        
-        conflict_tuples = conflict_tuples | set(product(good_pairs[w], (w,)))
-        good_pairs[w] = [(u, v)]
-
-        # Filter non-conflits from the set
-        for pair, z in conflict_tuples.copy():
-            if check_fn_with_pair(candidate_function, pair):
-                good_pairs[z].append(pair)
-                conflict_tuples.remove((pair, z))
-    
-    return candidate_function
 
 def delta_foo(lattice, functions):
     """ Calculates Delta using Greatest Lower Bounds and then fixes the
@@ -713,7 +657,7 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
         # Delta.AST: TestResults("Delta*"),
         # Delta.FOO: TestResults("Delta_foo"),
         Delta.FOO_B: TestResults("Delta_foo(current)"),
-        Delta.AST_PART: TestResults("Delta*(PART+O1)"),
+        # Delta.AST_PART: TestResults("Delta*(PART+O1)"),
         Delta.AST_PART_B: TestResults("Delta*(PART+O2)"),
         Delta.N: TestResults("Delta_n(Preprocessed)")
     }
@@ -751,11 +695,11 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
             print("-- Time:", fn_time, "\n")
             print("Delta_0:         ", [glb(i) for i in zip(*sample_functions)], "\n")
 
-        fn_time, delta_ast_part_result = run_test_case(delta_ast_partition, lattice, sample_functions)
-        delta_results[Delta.AST_PART].update_times(fn_time, n)
-        if verbose:
-            print("Delta*(PART+O1): ", repr(delta_ast_part_result))
-            print("-- Time:", fn_time, "\n")
+        # fn_time, delta_ast_part_result = run_test_case(delta_ast_partition, lattice, sample_functions)
+        # delta_results[Delta.AST_PART].update_times(fn_time, n)
+        # if verbose:
+        #     print("Delta*(PART+O1): ", repr(delta_ast_part_result))
+        #     print("-- Time:", fn_time, "\n")
 
         fn_time, delta_ast_part_b_result = run_test_case(delta_ast_partition_b, lattice, sample_functions)
         delta_results[Delta.AST_PART_B].update_times(fn_time, n)
@@ -780,8 +724,8 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
         #     delta_results[Delta.FOO].errors.append((sample_functions, delta_foo_result, delta_max_result))
         if delta_foo_b_result != delta_max_result:
             delta_results[Delta.FOO_B].errors.append((sample_functions, delta_foo_b_result, delta_max_result))
-        if delta_ast_part_result != delta_max_result:
-            delta_results[Delta.AST_PART].errors.append((sample_functions, delta_ast_part_result, delta_max_result))
+        # if delta_ast_part_result != delta_max_result:
+        #     delta_results[Delta.AST_PART].errors.append((sample_functions, delta_ast_part_result, delta_max_result))
         if delta_ast_part_b_result != delta_max_result:
             delta_results[Delta.AST_PART_B].errors.append((sample_functions, delta_ast_part_b_result, delta_max_result))
 

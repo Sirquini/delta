@@ -74,8 +74,9 @@ class Lattice:
     def imply(self, a, b):
         """ Returns a imply b.
         """
-        return self.impls()[a][b]
+        return self.impls[a][b]
 
+    @property
     def space_functions(self):
         """ Return the list of space functions, based on the lattice.
 
@@ -86,6 +87,7 @@ class Lattice:
            self._space_functions = self._generate_space_functions()
         return self._space_functions
 
+    @property
     def impls(self):
         """ Return the matrix of implications, based on the lattice.
 
@@ -400,7 +402,7 @@ def process_file(path, gen_functions=False):
             else:
                 print("[i] Generating space functions for `{}` ({} nodes)".format(key, len(value)))
                 lattice = Lattice(value)
-                space_functions = lattice.space_functions()
+                space_functions = lattice.space_functions
                 # Save the space functions to a file
                 with open(fns_file_path, "w") as f:
                     f.write(repr(space_functions))

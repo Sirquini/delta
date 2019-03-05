@@ -32,6 +32,7 @@ class Lattice:
         self.glbs = calculate_glbs(implies_matrix)
         # Lazy attributes
         self._space_functions = None
+        self._impls = None
 
     def __len__(self):
         """ Returns the number of nodes in the lattice.
@@ -70,6 +71,11 @@ class Lattice:
             r = self.glbs[r][i]
         return r
 
+    def imply(self, a, b):
+        """ Returns a imply b.
+        """
+        return self.impls()[a][b]
+
     def space_functions(self):
         """ Return the list of space functions, based on the lattice.
 
@@ -80,12 +86,36 @@ class Lattice:
            self._space_functions = self._generate_space_functions()
         return self._space_functions
 
+    def impls(self):
+        """ Return the matrix of implications, based on the lattice.
+
+            The actual `implys` are only generated once, feel free
+            to call this method multiple times.
+        """
+        if self._impls is None:
+           self._impls = self._calculate_implications()
+        return self._impls
+
     def _generate_space_functions(self):
         """ Generate a list of space functions, based on the lattice.
         """
         N = len(self)
         test_pairs = tuple(combinations(range(N), 2))
         return [(0,) + fn for fn in product(range(N), repeat=N-1) if self.is_fn_distributive(fn, test_pairs)]
+    
+    def _calculate_implications(self):
+        """ Calculate the matrix of implications for the lattice.
+        """
+        N = len(self)
+        return [[self._pair_implication(i, j) for j in range(N)] for i in range(N)]
+    
+    def _pair_implication(self, a, b):
+        """ Calculate the greatest lower bound of the pair (`a`, `b`)
+            in the lattice
+        """
+        # a -> b ::= glb_{i <= b} { i | a lub i >= b }
+        return self.glb((i for i in range(len(self)) if self.lattice[b][i] == 1 and self.lattice[self.lubs[a][i]][b] == 1))
+
 
 # ######################################
 

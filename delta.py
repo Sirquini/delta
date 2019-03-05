@@ -93,11 +93,11 @@ def pair_implication(a, b, lattice):
         given `lattice`
         Implictly using the global variables `LUBs` and `GLBs`
     """
-    # a -> b ::= glb_{i <= b} { i | a lub i <= b }
+    # a -> b ::= glb_{i <= b} { i | a lub i >= b }
     return glb((i for i in range(len(lattice)) if lattice[b][i] == 1 and lattice[lub((a, i))][b] == 1))
 
 def imply(a, b):
-    """ Returns a impply b.
+    """ Returns a imply b.
         Using global variable `IMPLs`
     """
     return IMPLs[a][b]
@@ -106,14 +106,14 @@ def generate_functions(n):
     """ Generate a list of space functions, based on a lattice
         of `n` elements.
     """
-    test_pairs = list(combinations(range(n), 2))
+    test_pairs = tuple(combinations(range(n), 2))
     return [(0,) + fn for fn in product(range(n), repeat=n-1) if is_distributive(fn, test_pairs)]
 
 def is_distributive(fn, test_pairs):
     """ Checks if a given function `fn` is distributive.
     """
     fn = (0,) + fn
-    return all(fn[lub([t0, t1])] == lub([fn[t0], fn[t1]]) for t0, t1 in test_pairs)
+    return all(fn[lub((t0, t1))] == lub((fn[t0], fn[t1])) for t0, t1 in test_pairs)
 
 def is_lattice(lattice):
     """ Returns True if `lattice` is a valid lattice.
@@ -695,8 +695,8 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
     # Used for showing the aggregate results at the end
     delta_results = {
         # Delta.AST: TestResults("Delta*"),
-        Delta.FOO: TestResults("Delta_foo(FEB28)"),
-        Delta.FOO_B: TestResults("Delta_foo(current)"),
+        Delta.FOO: TestResults("Delta_foo(V4)"),
+        Delta.FOO_B: TestResults("Delta_foo(V3)"),
         # Delta.AST_PART: TestResults("Delta*(PART+O1)"),
         Delta.AST_PART_B: TestResults("Delta*(PART+O2)"),
         Delta.N: TestResults("Delta_n(Preprocessed)")
@@ -884,12 +884,91 @@ def run_failling_foo():
 def run_random():
     from lattice import random_lattice, lattice_from_covers
     covers = random_lattice(8, 0.95)
-    print("* Using lattice: ", covers)
+    print("* Using lattice:", covers)
     lattice = lattice_from_covers(covers)
     run(lattice)
+
+def run_lattice_implementations():
+    from lattice import random_lattice, lattice_from_covers, Lattice
+    covers = random_lattice(8, 0.95)
+    print("* Using lattice:", covers)
+    lattice_matrix = lattice_from_covers(covers)
+
+    start_time = time()
+
+    # Compare the LUBs, GLBs generation
+    legacy_time = time()
+    legacy_lubs = calculate_lubs(lattice_matrix)
+    legacy_glbs = calculate_glbs(lattice_matrix)
+    legacy_time = time() - legacy_time
+
+    print("Legacy implementation LUBs, GLBs time:", legacy_time)
+
+    # The new implementation encapsulates the LUBs and GLBs as part
+    # of the Lattice object and are generated on initialization
+    new_time = time()
+    new_lattice = Lattice(lattice_matrix)
+    new_time = time() - new_time
+
+    print("New implementation LUBs, GLBs time:   ", new_time)
+
+    # Compare results for sanity check
+    if legacy_lubs != new_lattice.lubs or legacy_glbs != new_lattice.glbs:
+        print("Some of the resulting matrices are \x1b[31mDIFFERENT\x1b[0m")
+    else:
+        print("All the resulting matrices are \x1b[32mequal\x1b[0m")
+
+    # Needed for legacy implementation
+    global LUBs, GLBs
+    LUBs = legacy_lubs
+    GLBs = legacy_glbs
+
+    # Compare the IMPLs generation
+    legacy_time = time()
+    legacy_impls = calculate_implications(lattice_matrix)
+    legacy_time = time() - legacy_time
+
+    print("Legacy implementation IMPLs time:", legacy_time)
+
+    # The new implementation encapsulates the LUBs and GLBs as part
+    # of the Lattice object and are generated on initialization
+    new_time = time()
+    new_impls = new_lattice.impls
+    new_time = time() - new_time
+
+    print("New implementation IMPLs time:   ", new_time)
+
+    # Compare results for sanity check
+    if legacy_impls != new_impls:
+        print("The resulting matrices are \x1b[31mDIFFERENT\x1b[0m")
+    else:
+        print("The resulting matrices are \x1b[32mequal\x1b[0m")
+
+    # Compare space_functions generation
+    legacy_time = time()
+    legacy_space_fns = generate_functions(len(lattice_matrix))
+    legacy_time = time() - legacy_time
+
+    print("Legacy implementation space_functions time:", legacy_time)
+
+    new_time = time()
+    new_space_fns = new_lattice.space_functions
+    new_time = time() - new_time
+
+    print("New implementation space_functions time:   ", new_time)
+
+    # Compare results for sanity check
+    if legacy_space_fns != new_space_fns:
+        print("Some of the resulting functions are \x1b[31mDIFFERENT\x1b[0m")
+    else:
+        print("All the resulting functions are \x1b[32mequal\x1b[0m")
+    
+    elapsed_time = time() - start_time
+    print("\nElapsed time:", elapsed_time)
 
 if __name__ == "__main__":
     # run_full_tests()
     # run_square()
     # run_random()
-    run_failling_foo()
+    # run_failling_foo()
+    run_lattice_implementations()

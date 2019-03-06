@@ -29,7 +29,7 @@ def calculate_glbs(lattice):
     return result
 
 def pair_lub(a, b, lattice):
-    """ Calculate the lower upper bound of the pair (`a`, `b`)
+    """ Calculate the least upper bound of the pair (`a`, `b`)
         given `lattice`
     """
     if lattice[a][b] == 1: return a
@@ -82,11 +82,7 @@ def calculate_implications(lattice):
     """ Calculate the matrix of implications for the `lattice`
     """
     n = len(lattice)
-    result = [[0 for i in range(n)] for j in range(n)]
-    for i in range(n):
-        for j in range(n):
-            result[i][j] = pair_implication(i, j, lattice)
-    return result
+    return [[pair_implication(i, j, lattice) for j in range(n)] for i in range(n)]
 
 def pair_implication(a, b, lattice):
     """ Calculate the greatest lower bound of the pair (`a`, `b`)
@@ -126,13 +122,10 @@ def is_lattice(lattice):
     return all(lub(pair) != -1 for pair in lt)
 
 def leq_fn(lattice, fn1, fn2):
-    """ Returns True if the function `fn1` < `fn2`
+    """ Returns True if the function `fn1` <= `fn2`
         for a given `lattice`. Otherwise False.
     """
-    for i in range(len(lattice)):
-        if lattice[fn2[i]][fn1[i]] != 1:
-            return False
-    return True
+    return all(lattice[fn2[i]][fn1[i]] == 1 for i in range(len(lattice)))
 
 def max_fn(lattice, functions):
     """ Returns the maximun function from a collection of
@@ -889,8 +882,8 @@ def run_random():
     run(lattice)
 
 def run_lattice_implementations():
-    from lattice import random_lattice, lattice_from_covers, Lattice
-    covers = random_lattice(8, 0.95)
+    from lattice import lattice_from_covers, Lattice
+    covers = [[], [0], [0], [0], [2, 3, 1], [0], [2], [4, 5, 6]]
     print("* Using lattice:", covers)
     lattice_matrix = lattice_from_covers(covers)
 

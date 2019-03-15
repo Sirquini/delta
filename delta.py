@@ -146,6 +146,36 @@ def apply_fns(functions, elements):
     """
     return [functions[i][elem] for i, elem in enumerate(elements)]
 
+def atoms(lattice):
+    """ Returns a list of all the atoms in `lattice`.
+        
+        + `y` is an atom if `0` is covered by `y`
+        + `x` is covered by `y` if `x < y` and `x <= z < y` implies `z = x`
+    """
+    n = len(lattice)
+    return [i for i in range(n) if all(i != 0 and (i == j or j == 0 or lattice[i][j] == 0) for j in range(n))]
+
+def random_space_function(lattice):
+    n = len(lattice)
+    all_atoms = atoms(lattice)
+    # Map 0
+    result = [0 for _ in range(n)]
+    # Map all atoms to a random value
+    for atom in all_atoms:
+        result[atom] = random.randrange(0, n)
+    # Map all other values
+    for i in range(1, n):
+        if i not in all_atoms:
+            # f(c) = Vf(a_i) where Va_i = c and each a_i is an atom.
+
+            # Debug code ---
+            # filtered_atoms = [atom for atom in all_atoms if lattice[i][atom] == 1]
+            # print("{} = {} -> {} : {}".format(i, lub(filtered_atoms), lub(map(lambda x: result[x], filtered_atoms)), filtered_atoms))
+            # --- end debug code
+
+            result[i] = lub((result[atom] for atom in all_atoms if lattice[i][atom] == 1))
+    return result
+
 # ######################################
 # Delta functions for lattice operations
 # ######################################
@@ -718,13 +748,13 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
         fn_time, delta_foo_result = run_test_case(delta_foo, lattice, sample_functions)
         delta_results[Delta.FOO].update_times(fn_time, n)
         if verbose:
-            print("Delta_foo:       ", repr(delta_foo_result))
+            print("Delta_foo(V4):   ", repr(delta_foo_result))
             print("-- Time:", fn_time, "\n")
         
         fn_time, delta_foo_b_result = run_test_case(delta_foo_b, lattice, sample_functions)
         delta_results[Delta.FOO_B].update_times(fn_time, n)
         if verbose:
-            print("Delta_foo:       ", repr(delta_foo_b_result))
+            print("Delta_foo(V3):   ", repr(delta_foo_b_result))
             print("-- Time:", fn_time, "\n")
             print("Delta_0:         ", [glb(i) for i in zip(*sample_functions)], "\n")
 
@@ -959,9 +989,43 @@ def run_lattice_implementations():
     elapsed_time = time() - start_time
     print("\nElapsed time:", elapsed_time)
 
+def run_random_space_functions():
+    from lattice import Lattice, lattice_from_covers
+
+    covers = [[], [0], [0], [0], [1,2], [1,3], [2,3], [4,5,6]]
+    print("* Using lattice:", covers)
+    lattice_matrix = lattice_from_covers(covers)
+    lattice = Lattice(lattice_matrix)
+
+    # Define all globals, this could be avoided when using the new
+    # lattice implementation.
+    global LUBs, GLBs
+    LUBs = lattice.lubs
+    GLBs = lattice.glbs
+
+    print("[i] Generating all space functions.")
+    gen_time = time()
+    space_functions = lattice.space_functions
+    gen_time = time() - gen_time
+    print("Generated all {} space functions in {} seconds".format(len(space_functions), gen_time))
+
+    print("\nAtoms for this lattice:", atoms(lattice_matrix))
+    print("[i] Generating 100 random space functions.\n")
+    space_fns = [random_space_function(lattice_matrix) for _ in range(100)]
+    
+    invalid_space_fns = [sf for sf in space_fns if tuple(sf) not in space_functions]
+
+    if len(invalid_space_fns) != 0:
+        print("Some ({}) of the random functions are \x1b[31mINVALID\x1b[0m".format(len(invalid_space_fns)))
+        print("Invalid space functions:", invalid_space_fns)
+    else:
+        print("All the resulting functions are \x1b[32mvalid\x1b[0m")
+
+
 if __name__ == "__main__":
     # run_full_tests()
     # run_square()
     # run_random()
     # run_failling_foo()
-    run_lattice_implementations()
+    # run_lattice_implementations()
+    run_random_space_functions()

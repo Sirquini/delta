@@ -52,7 +52,6 @@ class Lattice:
     def is_fn_distributive(self, fn, test_pairs):
         """ Checks if a given function `fn` is distributive.
         """
-        fn = (0,) + fn
         return all(fn[self.lubs[t0][t1]] == self.lubs[fn[t0]][fn[t1]] for t0, t1 in test_pairs)
 
     def lub(self, iterable):
@@ -75,6 +74,15 @@ class Lattice:
         """ Returns a imply b.
         """
         return self.impls[a][b]
+
+    def atoms(self):
+        """ Returns a list of all the atoms.
+            
+            + `y` is an atom if `0` is covered by `y`
+            + `x` is covered by `y` if `x < y` and `x <= z < y` implies `z = x`
+        """
+        n = len(self)
+        return [i for i in range(n) if all(i != 0 and (i == j or j == 0 or self.lattice[i][j] == 0) for j in range(n))]
 
     @property
     def space_functions(self):
@@ -103,7 +111,7 @@ class Lattice:
         """
         N = len(self)
         test_pairs = tuple(combinations(range(N), 2))
-        return [(0,) + fn for fn in product(range(N), repeat=N-1) if self.is_fn_distributive(fn, test_pairs)]
+        return [(0,) + fn for fn in product(range(N), repeat=N-1) if self.is_fn_distributive((0,) + fn, test_pairs)]
     
     def _calculate_implications(self):
         """ Calculate the matrix of implications for the lattice.

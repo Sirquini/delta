@@ -162,10 +162,10 @@ def random_space_function(lattice):
     """ Generates a random space function for the given `lattice`.
 
         This mapping function is only guaranteed to be a valid space function
-        if the `lattice` is atomistic.
+        if the `lattice` is isomorphic to the powerset.
     """
     n = len(lattice)
-    all_atoms = atoms(lattice)
+    all_atoms = lattice.atoms()
     # Map 0
     result = [0 for _ in range(n)]
     # Map all atoms to a random value
@@ -175,7 +175,7 @@ def random_space_function(lattice):
     for i in range(1, n):
         if i not in all_atoms:
             # f(c) = Vf(a_i) where Va_i = c and each a_i is an atom.
-            result[i] = lub((result[atom] for atom in all_atoms if lattice[i][atom] == 1))
+            result[i] = lattice.lub((result[atom] for atom in all_atoms if lattice.lattice[i][atom] == 1))
     return result
 
 # ######################################
@@ -1002,31 +1002,22 @@ def run_random_space_functions():
     from lattice import Lattice, lattice_from_covers
 
     covers = [[], [0], [0], [0], [1,2], [1,3], [2,3], [4,5,6]]
-    print("* Using lattice:", covers)
+    # covers = [[], [0], [0], [0], [1, 2, 3]]
+    print("* Using lattice({}): {}".format(len(covers), covers))
     lattice_matrix = lattice_from_covers(covers)
     lattice = Lattice(lattice_matrix)
 
-    # Define all globals, this could be avoided when using the new
-    # lattice implementation.
-    global LUBs, GLBs
-    LUBs = lattice.lubs
-    GLBs = lattice.glbs
-
-    print("[i] Generating all space functions.")
-    gen_time = time()
-    space_functions = lattice.space_functions
-    gen_time = time() - gen_time
-    print("Generated all {} space functions in {} seconds".format(len(space_functions), gen_time))
-
-    print("\nAtoms for this lattice:", atoms(lattice_matrix))
+    print("\nAtoms for this lattice:", lattice.atoms())
     print("[i] Generating 100 random space functions.\n")
-    space_fns = [random_space_function(lattice_matrix) for _ in range(100)]
-    
-    invalid_space_fns = [sf for sf in space_fns if tuple(sf) not in space_functions]
+    space_fns = [random_space_function(lattice) for _ in range(100)]
+
+    test_pairs = tuple(combinations(range(len(lattice)), 2))
+    invalid_space_fns = [sf for sf in space_fns if not lattice.is_fn_distributive(sf, test_pairs)]
 
     if len(invalid_space_fns) != 0:
         print("Some ({}) of the random functions are \x1b[31mINVALID\x1b[0m".format(len(invalid_space_fns)))
-        print("Invalid space functions:", invalid_space_fns)
+        for i, v in enumerate(invalid_space_fns):
+            print("{} : {}".format(i, v))
     else:
         print("All the resulting functions are \x1b[32mvalid\x1b[0m")
 

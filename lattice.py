@@ -269,6 +269,24 @@ def lattice_from_covers(lc_all):
 
     return lattice
 
+def covers_from_lattice(matrix):
+    """ Converst an implies matrix of a lattice into its equivalent list of
+        covers.
+    """
+    n = len(matrix)
+    result = [set() for _ in range(n)]
+    for i, row in enumerate(matrix):
+        for j, cell in enumerate(row):
+            if cell == 1 and i != j:
+                result[i].add(j)
+
+    for i, lowers in enumerate(result):
+        for value, elem in enumerate(result):
+            if i in elem:
+                result[value].difference_update(lowers)
+
+    return [list(i) for i in result]
+
 # #######################################
 
 def print_table(table):
@@ -359,6 +377,26 @@ def gen_lattice(n):
 
     return joins
 
+def powerset_lattice(n):
+    """ Generate the equivalent lattice for a powerset of 2^n elements.
+
+        The generated lattice can be used with the `Lattice` class, or
+        converted with the `covers_from_lattice` function.
+
+        INPUTS:
+        + `n` -- The power of 2 for the number of elements. For example,
+          powerset of n=3 produces the covers for a lattice of 2^3, or 8,
+          elements. 
+    """
+    powerset = [set(elem) for i in range(n+1) for elem in combinations(range(1, n+1), i)]
+    result = [[0 for _ in range(len(powerset))] for _ in range(len(powerset))]
+    for i, row in enumerate(result):
+        for j, _ in enumerate(row):
+            if powerset[j].issubset(powerset[i]):
+                result[i][j] = 1
+    return result
+
+
 # #######################################
 
 def process_file(path, gen_functions=False):
@@ -373,8 +411,8 @@ def process_file(path, gen_functions=False):
     as the name of the file with the prefix "sf_".
 
     INPUTS:
-    - `path` -- The location of the file relative to the script.
-    - `gen_functions` -- If True, generates the corresponding
+    + `path` -- The location of the file relative to the script.
+    + `gen_functions` -- If True, generates the corresponding
       space functions for each processed lattice and saves them
       in a file named with the equivalent key of the resulting
       dictionary, prefixed with "sf_" and ending in ".in".
@@ -418,7 +456,31 @@ def process_file(path, gen_functions=False):
 
     return results
 
+def test_equality(expected, actual, name):
+    message = "test {} ...".format(name)
+    if expected != actual:
+        print("{} \x1b[31mFAILED\x1b[0m".format(message))
+        print("Expected:", expected)
+        print("Actual:  ", actual)
+    else:
+        print("{} \x1b[32mok\x1b[0m".format(message))
+
 if __name__ == "__main__":
 
-    process_file("distributive_lattices.py", True)
+    # process_file("distributive_lattices.py", True)
+
+    print("Running tests")
+    # Testing covers_from_lattice
+    expected = [[], [0], [0], [0], [1,2], [1,3], [2,3], [4,5,6]] 
+    actual = covers_from_lattice(lattice_from_covers(expected))
+    test_equality(expected, actual, "covers_from_lattice")
+
+    # Testing Powerset generation
+    expected = [[], [0], [0], [0], [1,2], [1,3], [2,3], [4,5,6]]
+    actual = covers_from_lattice(powerset_lattice(3))
+    test_equality(expected, actual, "Powerset(3) covers")
+
+    expected = [[], [0], [0], [0], [0], [1,2], [1,3], [1,4], [2,3], [2,4], [3,4], [5,6,8], [5,7,9], [6,7,10], [8,9,10], [11,12,13,14]]
+    actual = covers_from_lattice(powerset_lattice(4))
+    test_equality(expected, actual, "Powerset(4) covers")
 

@@ -1021,10 +1021,80 @@ def run_random_space_functions():
     else:
         print("All the resulting functions are \x1b[32mvalid\x1b[0m")
 
+def run_powerset():
+    from lattice import powerset_lattice, Lattice
+    start_time = time()
+
+    # The actual number of elements in the lattice = 2^n
+    exponent = 10
+    elements = 2**exponent
+    print("[i] Generating powerset lattice with {} nodes".format(elements))
+
+    # Generate the powerset lattice and measure times
+    gen_time = time()
+    lattice_matrix = powerset_lattice(exponent)
+    gen_time = time() - gen_time
+    print("Lattice generation time:", gen_time)
+
+    preproc_time = time()
+    lattice = Lattice(lattice_matrix)
+    # Generate the necessary globals
+    global LUBs, GLBs, IMPLs
+    LUBs = lattice.lubs
+    GLBs = lattice.glbs
+    IMPLs = lattice.impls
+    preproc_time = time() - preproc_time
+
+    print("LUBs, GLBs, IMPLYs preprocessing time:", preproc_time)
+    print("________________________________________________________________\n")
+    
+    # Used for showing the aggregate results at the end
+    delta_results = {
+        Delta.FOO: TestResults("Delta_foo(V4)"),
+        # Delta.FOO_B: TestResults("Delta_foo(V3)"),
+        Delta.AST_PART_B: TestResults("Delta*(PART+O2)")
+    }
+    deltas_are_equal = TestResults("assert_equal(Delta_foo(V4), Delta*(PART+02))")
+
+    # Number of iterations
+    n = 10
+
+    print("Running ", end='', flush=True)
+    for _ in range(n):
+        # Get some space functions at random or use given ones
+        sample_functions = [random_space_function(lattice) for _ in range(4)]
+
+        fn_time, delta_foo_result = run_test_case(delta_foo, lattice_matrix, sample_functions)
+        delta_results[Delta.FOO].update_times(fn_time, n)
+        
+        # fn_time, _ = run_test_case(delta_foo_b, lattice_matrix, sample_functions)
+        # delta_results[Delta.FOO_B].update_times(fn_time, n)
+
+        fn_time, delta_ast_partition_b_result = run_test_case(delta_ast_partition_b, lattice_matrix, sample_functions)
+        delta_results[Delta.AST_PART_B].update_times(fn_time, n)
+
+        if delta_foo_result != delta_ast_partition_b_result:
+            deltas_are_equal.errors.append((sample_functions, delta_foo_result, delta_ast_partition_b_result))
+
+        print(".", end='', flush=True)
+    print("")
+
+    print("Number of iterations:", n)
+
+    deltas_are_equal.print_errors()
+    deltas_are_equal.print_status()
+
+    for result in delta_results.values():
+        result.print_times()
+
+    elapsed_time = time() - start_time
+    print("\nTotal time:", elapsed_time)
+
 if __name__ == "__main__":
     # run_full_tests()
     # run_square()
     # run_random()
     # run_failling_foo()
     # run_lattice_implementations()
-    run_random_space_functions()
+    # run_random_space_functions()
+    run_powerset()

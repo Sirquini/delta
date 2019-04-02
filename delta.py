@@ -567,7 +567,7 @@ class TestResults:
     
     def update_times(self, new_time, max_iterations):
         """ Updates the internal time counter with the `new_time`. Keeping
-            track of the average (over `max_iterations`), minimun, and maximun
+            track of the average (over `max_iterations`), minimum, and maximum
             time of the TestResult associated algorithm.
         """
         self.avg_time += new_time / max_iterations
@@ -575,7 +575,7 @@ class TestResults:
         self.max_time = max(self.max_time, new_time)
     
     def print_times(self):
-        """ Prints the current average, minimun and maximun time.
+        """ Prints the current average, minimum and maximum time.
         """
         print("\nTimes for", self.name)
         print("-- Average:", self.avg_time)
@@ -594,7 +594,7 @@ class TestResults:
     def print_errors(self):
         """ If the TestResult presents any failed test cases, then it prints
             each failed test case, showing the space functions used, the
-            expected (correct) and the actual (reported) results.
+            expected (correct) and the actual (reported) result.
         """
         errors = len(self.errors)
         if errors > 0:

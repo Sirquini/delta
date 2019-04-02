@@ -126,11 +126,149 @@ class Lattice:
         # a -> b ::= glb_{i <= b} { i | a lub i >= b }
         return self.glb((i for i in range(len(self)) if self.lattice[b][i] == 1 and self.lattice[self.lubs[a][i]][b] == 1))
 
+# ######################################
+
+# ######################################
+# Delta functions defined with the class
+# Lattice and local context
+# ######################################
+
+def partition_helper(lattice, functions, first, last, c, helper_cache):
+    cached_result = helper_cache[c][first][last-1]
+    if cached_result is not None:
+        return cached_result
+    fn_num = last - first
+    if fn_num == 1:
+        return functions[first][c]
+    else:
+        n = len(lattice)
+        mid_point = first + fn_num // 2
+        result = lattice.glb(lattice.lub((partition_helper(lattice, functions, first, mid_point, a, helper_cache), partition_helper(lattice, functions, mid_point, last, lattice.imply(a, c), helper_cache))) for a in range(n) if lattice.lattice[c][a] == 1)
+        helper_cache[c][first][last-1] = result
+        return result
+
+def delta_ast_partition(lattice, functions):
+    """ Calculate Delta* for a set of `functions` over a `lattice`
+        partitioning the set of functions and using a look-up table.
+    """
+    n = len(functions)
+    helper_cache = [[[None] * n for _ in range(n)] for _ in range(len(lattice))]
+    return [partition_helper(lattice, functions, 0, n, c, helper_cache) for c in range(len(lattice))]
+
+class FooContext:
+    """ Helper class for delta_foo, containing:
+
+        + (S) One sub-list of good pairs for each element in the lattice
+        + (C) All conflicting tuples from all elements in the lattice
+        + (R) A cross-referencing list of elements in the lattice
+        + (F) All pairs of elements in the lattice that lost support
+    """
+    def __init__(self, n):
+        """ Creates a helper class for delta_foo, containing:
+
+            + (S) One sub-list of good pairs for each element in the lattice
+            + (C) All conflicting tuples from all elements in the lattice
+            + (R) A cross-referencing list of elements in the lattice
+            + (F) All pairs of elements in the lattice that lost support
+        """
+        self.good_pairs = [set() for _ in range(n)]
+        self.conflicts = set()
+        self.cross_references = [set() for _ in range(n)]
+        self.falling_pairs = set()
+
+    def process(self, lattice, delta, u, v):
+        """ Sends the pair (u, v) to the set of conflicts (C), falling_pairs (F)
+            or good_pairs (S), according to the property that holds for the pair.
+        """
+        w = lattice.lubs[u][v]
+        if lattice.lattice[lattice.lubs[delta[u]][delta[v]]][delta[w]] != 1:
+            self.conflicts.add(((u, v), w))
+        elif lattice.lubs[delta[u]][delta[v]] == delta[w]:
+            self.good_pairs[w].add((u, v))
+            self.cross_references[u].add(v)
+            self.cross_references[v].add(u)
+        else:
+            self.falling_pairs.add((u, v))
+    
+    def check_supports(self, lattice, delta, u):
+        """ Identifies all pairs of the form (u, x) that lost their support because
+            of a change in delta(u). It adds (u, x) to the appropiate set of
+            conflicts (C), or falling_pairs (F).
+        """
+        while self.cross_references[u]:
+            v = self.cross_references[u].pop()
+            w = lattice.lubs[u][v]
+            if lattice.lubs[delta[u]][delta[v]] != delta[w]:
+                self.good_pairs[w].discard((u, v))
+                self.cross_references[u].discard(v)
+                self.cross_references[v].discard(u)
+                self.process(lattice, delta, u, v)
+
+def delta_foo(lattice, functions):
+    """ Calculates Delta using the Greatest Lower Bound between all the `functions`
+        and then fixes the resulting function until it's a valid space-fumction.
+    """
+    n = len(lattice)
+    # Here delta[c] = glb(fn_1[c], fn_2[c], ..., fn_n[c]), for fn_i in functions
+    delta = [lattice.glb(i) for i in zip(*functions)]
+    # Contains all delta_foo supporting structures (S, C, R, F)
+    context = FooContext(n)
+
+    # Calculate all initial conflicts in the candidate solution
+    for u, v in combinations(range(n), 2):
+        context.process(lattice, delta, u, v)
+
+    while len(context.conflicts) != 0:
+        (u, v), w = context.conflicts.pop()
+        if lattice.lattice[lattice.lubs[delta[u]][delta[v]]][delta[w]] != 1:
+            delta[w] = lattice.lub((delta[u], delta[v]))
+            context.falling_pairs.update(context.good_pairs[w])
+            context.good_pairs[w] = set([(u, v)])
+
+            context.check_supports(lattice, delta, w)
+            context.cross_references[u].add(v)
+            context.cross_references[v].add(u)   
+        else:
+            context.process(lattice, delta, u, v)
+        
+        while len(context.falling_pairs) != 0:
+            x, y = context.falling_pairs.pop()
+            z = lattice.lub((x, y))
+            
+            if lattice.lattice[delta[z]][lattice.lubs[delta[x]][delta[y]]] == 1:
+                context.process(lattice, delta, x, y)
+            else:
+                if delta[x] != lattice.glb((delta[x], delta[z])):
+                    delta[x] = lattice.glb((delta[x], delta[z]))
+                    context.falling_pairs.update(context.good_pairs[x])
+                    for u, v in context.good_pairs[x]:
+                        context.cross_references[u].add(v)
+                        context.cross_references[v].add(u)
+                    context.good_pairs[x].clear()
+                    context.check_supports(lattice, delta, x)
+                
+                if delta[y] != lattice.glb((delta[y], delta[z])):
+                    delta[y] = lattice.glb((delta[y], delta[z]))
+                    context.falling_pairs.update(context.good_pairs[y])
+                    for u, v in context.good_pairs[y]:
+                        context.cross_references[u].add(v)
+                        context.cross_references[v].add(u)
+                    context.good_pairs[y].clear()
+                    context.check_supports(lattice, delta, y)
+
+                if lattice.lub((delta[x], delta[y])) == delta[z]:
+                    context.good_pairs[z].add((x, y))
+                    context.cross_references[x].add(y)
+                    context.cross_references[y].add(x)
+                else:
+                    context.conflicts.add(((x, y), z))
+    return delta
 
 # ######################################
 
 # ######################################
-# Helper functions for papers' algorithm
+# Helper functions for random lattice 
+# generation for the papers' algorithm
 # ######################################
 
 # This may be the wrong way of calculating S. ¯\_(ツ)_/¯
@@ -395,7 +533,6 @@ def powerset_lattice(n):
             if powerset[j].issubset(powerset[i]):
                 result[i][j] = 1
     return result
-
 
 # #######################################
 

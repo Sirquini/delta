@@ -247,18 +247,35 @@ def delta_ast_imply(lattice, functions):
         return delta
 
 def partition_helper(lattice, functions, first, last, c):
-    cached_result = HELPER_CACHE[c].get((first, last))
+    cached_result = HELPER_CACHE[c][first][last-1]
     if cached_result is not None:
         return cached_result
-    n = len(lattice)
     fn_num = last - first
     if fn_num == 1:
         return functions[first][c]
     else:
+        n = len(lattice)
         mid_point = first + fn_num // 2
-        result = glb(lub((partition_helper(lattice, functions, first, mid_point, a), partition_helper(lattice, functions, mid_point, last, imply(a, c)))) for a in range(n) if lattice[c][a] == 1)
-        HELPER_CACHE[c][(first, last)] = result
+        left = right = mid_point
+        # Adjust the mid-point so the partition overlaps
+        if mid_point - first > 2:
+            right += 1
+        if last - mid_point > 2:
+            left -= 1
+        result = glb(lub((partition_helper(lattice, functions, first, right, a), partition_helper(lattice, functions, left, last, imply(a, c)))) for a in range(n) if lattice[c][a] == 1)
+        HELPER_CACHE[c][first][last-1] = result
         return result
+
+def delta_ast_partition(lattice, functions):
+    """ Calculate Delta* for a set of `functions` over a `lattice`
+        partitioning the set of functions.
+
+        Using overlaping partitions, see partition_helper.
+    """
+    n = len(functions)
+    global HELPER_CACHE
+    HELPER_CACHE = [[[None] * n for _ in range(n)] for _ in range(len(lattice))]
+    return [partition_helper(lattice, functions, 0, n, c) for c in range(len(lattice))]
 
 def partition_helper_b(lattice, functions, first, last, c):
     cached_result = HELPER_CACHE[c][first][last-1]
@@ -274,18 +291,11 @@ def partition_helper_b(lattice, functions, first, last, c):
         HELPER_CACHE[c][first][last-1] = result
         return result
 
-def delta_ast_partition(lattice, functions):
-    """ Calculate Delta* for a set of `functions` over a `lattice`
-        partitioning the set of functions.
-    """
-    global HELPER_CACHE
-    HELPER_CACHE = [{} for _ in range(len(lattice))]
-    n = len(functions)
-    return [partition_helper(lattice, functions, 0, n, c) for c in range(len(lattice))]
-
 def delta_ast_partition_b(lattice, functions):
     """ Calculate Delta* for a set of `functions` over a `lattice`
         partitioning the set of functions.
+
+        Latest implementation of Delta* with a look-up table.
     """
     n = len(functions)
     global HELPER_CACHE
@@ -761,8 +771,8 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
     delta_results = {
         # Delta.AST: TestResults("Delta*"),
         Delta.FOO: TestResults("Delta_foo(V4)"),
-        Delta.FOO_B: TestResults("Delta_foo(V3)"),
-        # Delta.AST_PART: TestResults("Delta*(PART+O1)"),
+        # Delta.FOO_B: TestResults("Delta_foo(V3)"),
+        Delta.AST_PART: TestResults("Delta*(OVERLAP)"),
         Delta.AST_PART_B: TestResults("Delta*(PART+O2)"),
         Delta.N: TestResults("Delta_n(Preprocessed)")
     }
@@ -793,18 +803,18 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
             print("Delta_foo(V4):   ", repr(delta_foo_result))
             print("-- Time:", fn_time, "\n")
         
-        fn_time, delta_foo_b_result = run_test_case(delta_foo_b, lattice, sample_functions)
-        delta_results[Delta.FOO_B].update_times(fn_time, n)
-        if verbose:
-            print("Delta_foo(V3):   ", repr(delta_foo_b_result))
-            print("-- Time:", fn_time, "\n")
-            print("Delta_0:         ", [glb(i) for i in zip(*sample_functions)], "\n")
-
-        # fn_time, delta_ast_part_result = run_test_case(delta_ast_partition, lattice, sample_functions)
-        # delta_results[Delta.AST_PART].update_times(fn_time, n)
+        # fn_time, delta_foo_b_result = run_test_case(delta_foo_b, lattice, sample_functions)
+        # delta_results[Delta.FOO_B].update_times(fn_time, n)
         # if verbose:
-        #     print("Delta*(PART+O1): ", repr(delta_ast_part_result))
+        #     print("Delta_foo(V3):   ", repr(delta_foo_b_result))
         #     print("-- Time:", fn_time, "\n")
+        #     print("Delta_0:         ", [glb(i) for i in zip(*sample_functions)], "\n")
+
+        fn_time, delta_ast_part_result = run_test_case(delta_ast_partition, lattice, sample_functions)
+        delta_results[Delta.AST_PART].update_times(fn_time, n)
+        if verbose:
+            print("Delta*(OVERLAP): ", repr(delta_ast_part_result))
+            print("-- Time:", fn_time, "\n")
 
         fn_time, delta_ast_part_b_result = run_test_case(delta_ast_partition_b, lattice, sample_functions)
         delta_results[Delta.AST_PART_B].update_times(fn_time, n)
@@ -827,10 +837,10 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
         #     delta_results[Delta.AST].errors.append((sample_functions, delta_ast_result, delta_max_result))
         if delta_foo_result != delta_max_result:
             delta_results[Delta.FOO].errors.append((sample_functions, delta_foo_result, delta_max_result))
-        if delta_foo_b_result != delta_max_result:
-            delta_results[Delta.FOO_B].errors.append((sample_functions, delta_foo_b_result, delta_max_result))
-        # if delta_ast_part_result != delta_max_result:
-        #     delta_results[Delta.AST_PART].errors.append((sample_functions, delta_ast_part_result, delta_max_result))
+        # if delta_foo_b_result != delta_max_result:
+        #     delta_results[Delta.FOO_B].errors.append((sample_functions, delta_foo_b_result, delta_max_result))
+        if delta_ast_part_result != delta_max_result:
+            delta_results[Delta.AST_PART].errors.append((sample_functions, delta_ast_part_result, delta_max_result))
         if delta_ast_part_b_result != delta_max_result:
             delta_results[Delta.AST_PART_B].errors.append((sample_functions, delta_ast_part_b_result, delta_max_result))
 
@@ -1148,11 +1158,11 @@ def run_space_projection():
 
 
 if __name__ == "__main__":
-    # run_full_tests()
+    run_full_tests()
     # run_square()
     # run_random()
     # run_failling_foo()
     # run_lattice_implementations()
     # run_random_space_functions()
     # run_powerset()
-    run_space_projection()
+    # run_space_projection()

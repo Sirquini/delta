@@ -158,6 +158,18 @@ def atoms(lattice):
     n = len(lattice)
     return [i for i in range(n) if all(i != 0 and (i == j or j == 0 or lattice[i][j] == 0) for j in range(n))]
 
+def join_irreducible_elements(lattice):
+    """ Returns a list of all the join-irreducible elements in the lattice.
+
+        `x` is join-irreducible (or lub-irreducible) if:
+        + `x != 0`
+        + `a < x` and `b < x` imply `a lub b < x` for all `a` and `b` 
+    """
+    n = len(lattice)
+    test_pairs = tuple(combinations(range(n), 2))
+    return [x for x in range(1, n) if all((x == a or x == b or x != LUBs[a][b] for a, b in test_pairs))]
+
+
 def random_space_function(lattice):
     """ Generates a random space function for the given `lattice`.
 
@@ -177,6 +189,27 @@ def random_space_function(lattice):
             # f(c) = Vf(a_i) where Va_i = c and each a_i is an atom.
             result[i] = lattice.lub((result[atom] for atom in all_atoms if lattice.lattice[i][atom] == 1))
     return result
+
+def i_projection(lattice, function, c):
+    """ Return the i-projection of c for the `lattice`.
+
+        Defined as `lub({e | c >= function[e] and e in lattice})`
+    """
+    return lub(e for e in range(len(lattice)) if lattice[c][function[e]] == 1)
+
+def i_join_projection(lattice, functions, c):
+    """ Returns the I-join projection of `c` for a group of `functions` over a
+        `lattice`.
+
+        Defined as `lub({i_projection(fn, c) | fn in functions})`
+    """
+    return lub(i_projection(lattice, fn, c) for fn in functions)
+
+def space_projection(lattice, functions):
+    """ Calculates the Space Projection, or I-join projection, for all elements
+        of `lattice` with `functions`.
+    """
+    return [i_join_projection(lattice, functions, c) for c in range(len(lattice))]
 
 # ######################################
 # Delta functions for lattice operations
@@ -1001,13 +1034,18 @@ def run_lattice_implementations():
 def run_random_space_functions():
     from lattice import Lattice, lattice_from_covers
 
-    covers = [[], [0], [0], [0], [1,2], [1,3], [2,3], [4,5,6]]
+    covers = [[], [0], [0], [1], [1, 2], [2], [3, 4], [4], [4, 5], [6, 7], [6, 8], [7, 8], [9], [9, 10, 11], [11], [12, 13], [13, 14], [15, 16]]
+    # covers = [[], [0], [0], [1], [1, 2], [2], [3], [3, 4], [4, 5], [5], [5], [6, 7, 8, 9, 10]]
+    # covers = [[], [0], [0], [1, 2], [2], [3], [3, 4], [5,6]]
+    # covers = [[], [0], [0], [0], [1,2], [1,3], [2,3], [4,5,6]]
+    # covers = [[], [0], [1], [1], [2,3]]
     # covers = [[], [0], [0], [0], [1, 2, 3]]
     print("* Using lattice({}): {}".format(len(covers), covers))
     lattice_matrix = lattice_from_covers(covers)
     lattice = Lattice(lattice_matrix)
 
     print("\nAtoms for this lattice:", lattice.atoms())
+    print("Join-irreducible elements for this lattice:", lattice.join_irreducible_elements())
     print("[i] Generating 100 random space functions.\n")
     space_fns = [random_space_function(lattice) for _ in range(100)]
 
@@ -1016,7 +1054,7 @@ def run_random_space_functions():
 
     if len(invalid_space_fns) != 0:
         print("Some ({}) of the random functions are \x1b[31mINVALID\x1b[0m".format(len(invalid_space_fns)))
-        for i, v in enumerate(invalid_space_fns):
+        for i, v in enumerate(invalid_space_fns, 1):
             print("{} : {}".format(i, v))
     else:
         print("All the resulting functions are \x1b[32mvalid\x1b[0m")
@@ -1090,6 +1128,25 @@ def run_powerset():
     elapsed_time = time() - start_time
     print("\nTotal time:", elapsed_time)
 
+def run_space_projection():
+    from lattice import Lattice, lattice_from_covers
+    covers = [[], [0], [0], [1, 2]]
+    space_functions = [(0, 2, 1, 3), (0, 3, 2, 3)]
+    lattice = Lattice(lattice_from_covers(covers))
+
+    # Generate the necessary globals
+    global LUBs, GLBs
+    LUBs = lattice.lubs
+    GLBs = lattice.glbs
+
+    print("* Using lattice({}): {}".format(len(covers), covers))
+    print("__________Space Functions__________\n")
+    for fn in space_functions:
+        print(fn)
+    print("___________________________________\n")
+    print("Space Projection:", space_projection(lattice.lattice, space_functions))
+
+
 if __name__ == "__main__":
     # run_full_tests()
     # run_square()
@@ -1097,4 +1154,5 @@ if __name__ == "__main__":
     # run_failling_foo()
     # run_lattice_implementations()
     # run_random_space_functions()
-    run_powerset()
+    # run_powerset()
+    run_space_projection()

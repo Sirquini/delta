@@ -84,6 +84,17 @@ class Lattice:
         n = len(self)
         return [i for i in range(n) if all(i != 0 and (i == j or j == 0 or self.lattice[i][j] == 0) for j in range(n))]
 
+    def join_irreducible_elements(self):
+        """ Returns a list of all the join-irreducible elements in the lattice.
+
+            `x` is join-irreducible (or lub-irreducible) if:
+            + `x != 0`
+            + `a < x` and `b < x` imply `a lub b < x` for all `a` and `b` 
+        """
+        n = len(self)
+        test_pairs = tuple(combinations(range(n), 2))
+        return [x for x in range(1, n) if all((x == a or x == b or x != self.lubs[a][b] for a, b in test_pairs))]
+
     @property
     def space_functions(self):
         """ Return the list of space functions, based on the lattice.

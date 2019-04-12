@@ -1,5 +1,6 @@
 import random
 import os
+import sys
 from enum import Enum
 from itertools import product
 from itertools import combinations
@@ -230,6 +231,8 @@ def delta_ast(lattice, functions):
 
 def delta_ast_imply(lattice, functions):
     """ Calculate Delta* for a set of `functions` over a `lattice`.
+        
+        Only implemented with for 2 functions or less.
 
         Using global variable `IMPLs`
     """
@@ -246,7 +249,119 @@ def delta_ast_imply(lattice, functions):
             delta[c] = glb((lub((fn[0][i], fn[1][imply(i, c)])) for i in range(n) if lattice[c][i] == 1 for fn in fns))
         return delta
 
+def partition_helper_v2(lattice, functions, first, last, c):
+    """ Helper function for delta*
+        
+        - No look-up table.
+        - No imply
+    """
+    fn_num = last - first
+    if fn_num == 1:
+        return functions[first][c]
+    else:
+        n = len(lattice)
+        mid_point = first + fn_num // 2
+        result = glb(
+            lub(
+                (partition_helper_v2(lattice, functions, first, mid_point, a),
+                 partition_helper_v2(lattice, functions, mid_point, last, b))
+            ) for a, b in permutations(range(n), 2) if lattice[LUBs[a][b]][c] == 1
+        )
+        return result
+
+def delta_ast_v2(lattice, functions):
+    """ Calculate Delta* for a set of `functions` over a `lattice`
+        partitioning the set of functions.
+
+        Similar to Delta* with partitioning but without using imply or a
+        look-up table.
+    """
+    n = len(functions)
+    return [partition_helper_v2(lattice, functions, 0, n, c) for c in range(len(lattice))]
+
+def partition_helper_v3(lattice, functions, first, last, c):
+    """ Helper function for delta*
+        
+        - No look-up table.
+        - With imply
+        - Checks all elements, not only elements <= c
+    """
+    fn_num = last - first
+    if fn_num == 1:
+        return functions[first][c]
+    else:
+        n = len(lattice)
+        mid_point = first + fn_num // 2
+        result = glb(lub((partition_helper_v3(lattice, functions, first, mid_point, a), partition_helper_v3(lattice, functions, mid_point, last, imply(a, c)))) for a in range(n))
+        return result
+
+def delta_ast_v3(lattice, functions):
+    """ Calculate Delta* for a set of `functions` over a `lattice`
+        partitioning the set of functions.
+
+        Implementation of Delta* without a look-up table.
+    """
+    n = len(functions)
+    return [partition_helper_v3(lattice, functions, 0, n, c) for c in range(len(lattice))]
+
+def partition_helper_v4(lattice, functions, first, last, c):
+    """ Helper function for delta*
+        
+        - No look-up table.
+        - With imply
+        - Only checks elements <= c
+    """
+    fn_num = last - first
+    if fn_num == 1:
+        return functions[first][c]
+    else:
+        n = len(lattice)
+        mid_point = first + fn_num // 2
+        result = glb(lub((partition_helper_v4(lattice, functions, first, mid_point, a), partition_helper_v4(lattice, functions, mid_point, last, imply(a, c)))) for a in range(n) if lattice[c][a] == 1)
+        return result
+
+def delta_ast_v4(lattice, functions):
+    """ Calculate Delta* for a set of `functions` over a `lattice`
+        partitioning the set of functions.
+
+        Latest implementation of Delta* without a look-up table.
+    """
+    n = len(functions)
+    return [partition_helper_v4(lattice, functions, 0, n, c) for c in range(len(lattice))]
+
 def partition_helper(lattice, functions, first, last, c):
+    cached_result = HELPER_CACHE[c][first][last-1]
+    if cached_result is not None:
+        return cached_result
+    fn_num = last - first
+    if fn_num == 1:
+        return functions[first][c]
+    else:
+        n = len(lattice)
+        mid_point = first + fn_num // 2
+        result = glb(lub((partition_helper(lattice, functions, first, mid_point, a), partition_helper(lattice, functions, mid_point, last, imply(a, c)))) for a in range(n) if lattice[c][a] == 1)
+        HELPER_CACHE[c][first][last-1] = result
+        return result
+
+def delta_ast_partition(lattice, functions):
+    """ Calculate Delta* for a set of `functions` over a `lattice`
+        partitioning the set of functions.
+
+        Latest implementation of Delta* with a look-up table.
+    """
+    n = len(functions)
+    global HELPER_CACHE
+    HELPER_CACHE = [[[None] * n for _ in range(n)] for _ in range(len(lattice))]
+    return [partition_helper(lattice, functions, 0, n, c) for c in range(len(lattice))]
+
+def overlapping_partition_helper(lattice, functions, first, last, c):
+    """ Helper function for delta*
+        
+        - With look-up table.
+        - With imply
+        - Only checks elements <= c
+        - The partitions overlap
+    """
     cached_result = HELPER_CACHE[c][first][last-1]
     if cached_result is not None:
         return cached_result
@@ -262,45 +377,21 @@ def partition_helper(lattice, functions, first, last, c):
             right += 1
         if last - mid_point > 2:
             left -= 1
-        result = glb(lub((partition_helper(lattice, functions, first, right, a), partition_helper(lattice, functions, left, last, imply(a, c)))) for a in range(n) if lattice[c][a] == 1)
+        result = glb(lub((overlapping_partition_helper(lattice, functions, first, right, a), overlapping_partition_helper(lattice, functions, left, last, imply(a, c)))) for a in range(n) if lattice[c][a] == 1)
         HELPER_CACHE[c][first][last-1] = result
         return result
 
-def delta_ast_partition(lattice, functions):
+def delta_ast_overlapping_partition(lattice, functions):
     """ Calculate Delta* for a set of `functions` over a `lattice`
         partitioning the set of functions.
 
-        Using overlaping partitions, see partition_helper.
+        Using overlaping partitions, see overlapping_partition_helper, and
+        a look-up table.
     """
     n = len(functions)
     global HELPER_CACHE
     HELPER_CACHE = [[[None] * n for _ in range(n)] for _ in range(len(lattice))]
-    return [partition_helper(lattice, functions, 0, n, c) for c in range(len(lattice))]
-
-def partition_helper_b(lattice, functions, first, last, c):
-    cached_result = HELPER_CACHE[c][first][last-1]
-    if cached_result is not None:
-        return cached_result
-    fn_num = last - first
-    if fn_num == 1:
-        return functions[first][c]
-    else:
-        n = len(lattice)
-        mid_point = first + fn_num // 2
-        result = glb(lub((partition_helper_b(lattice, functions, first, mid_point, a), partition_helper_b(lattice, functions, mid_point, last, imply(a, c)))) for a in range(n) if lattice[c][a] == 1)
-        HELPER_CACHE[c][first][last-1] = result
-        return result
-
-def delta_ast_partition_b(lattice, functions):
-    """ Calculate Delta* for a set of `functions` over a `lattice`
-        partitioning the set of functions.
-
-        Latest implementation of Delta* with a look-up table.
-    """
-    n = len(functions)
-    global HELPER_CACHE
-    HELPER_CACHE = [[[None] * n for _ in range(n)] for _ in range(len(lattice))]
-    return [partition_helper_b(lattice, functions, 0, n, c) for c in range(len(lattice))]
+    return [overlapping_partition_helper(lattice, functions, 0, n, c) for c in range(len(lattice))]
 
 def check_fn_with_pair(fn, pair):
     a, b = pair
@@ -341,6 +432,8 @@ def check_supports(lattice, delta, u, good_pairs, conflicts, cross_references, f
 def delta_foo(lattice, functions):
     """ Calculates Delta using Greatest Lower Bounds and then fixes the
         resulting function until its a valid space-function.
+
+        This version uses supporting structure to speed-up the process. 
 
         This function makes implicit use of the globals `LUBs` and `GLBs`.
     """
@@ -411,7 +504,8 @@ def delta_foo_b(lattice, functions):
 
         This function makes implicit use of the globals `LUBs` and `GLBs`.
 
-        Alternate version of `delta_foo` used for A/B Testing.
+        Alternate version of `delta_foo` used for A/B Testing, with a sanity
+        check that imposes a performance penalty.
     """
     n = len(lattice)
     # Here candidate_function[c] = glb(fn_1[c], fn_2[c], ..., fn_n[c]), for fn_i in functions
@@ -460,8 +554,9 @@ def delta_foo_b(lattice, functions):
                 conflict_tuples.add(((x, y), z))
         # Check that all good_pairs remain good. Sanity Check. Performance penalty.
         for sublist in good_pairs:
-            for bad_pair in filter(lambda p: LUBs[candidate_function[p[0]]][candidate_function[p[1]]] != candidate_function[LUBs[p[0]][p[1]]], sublist):
-                conflict_tuples.add((bad_pair, LUBs[bad_pair[0]][bad_pair[1]]))
+            for pair in sublist:
+                if LUBs[candidate_function[pair[0]]][candidate_function[pair[1]]] != candidate_function[LUBs[pair[0]][pair[1]]]:
+                    conflict_tuples.add((pair, LUBs[pair[0]][pair[1]]))
     return candidate_function
 
 def delta_n(lattice, space_functions, functions):
@@ -593,13 +688,18 @@ def relative_path(path, *paths):
     dirname = os.path.dirname(__file__)
     return os.path.join(dirname, path, *paths)
 
+def eprint(*args, **kwargs):
+    """ Similar to print but uses sys.stderr instead of sys.stdin
+    """
+    print(*args, file=sys.stderr, flush=True, **kwargs)
+
 # ######################################
 
 class TestResults:
     """ Utility class to group and show algorithms' results.
     """
     
-    def __init__(self, name):
+    def __init__(self, name, skip_times=False):
         # The name of the algorith tested
         self.name = name
         # Errors of the form (space_functions, bad_result, expected_result)
@@ -607,6 +707,8 @@ class TestResults:
         self.avg_time = 0.0
         self.min_time = float("inf")
         self.max_time = 0.0
+        # Used to indicate if timming values are not important
+        self.skip_times = skip_times
     
     def update_times(self, new_time, max_iterations):
         """ Updates the internal time counter with the `new_time`. Keeping
@@ -651,12 +753,16 @@ class TestResults:
                 print("___________________________________")
 
 class Delta(Enum):
-    AST = 0
-    FOO = 1
-    FOO_B = 2
-    AST_PART = 3
-    AST_PART_B = 4
-    N = 5
+    FOO = 0
+    FOO_B = 1
+    AST = 2
+    AST_V2 = 3
+    AST_V3 = 4
+    AST_V4 = 5
+    AST_LATEST = 6
+    AST_OVERLAP = 7
+    N = 8
+    OTHER = 10
 
 def run_test_case(fn, lattice, test_functions):
     """ Runs `fn` with a `lattice` and an iterable of `test_functions`.
@@ -810,16 +916,16 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
         #     print("-- Time:", fn_time, "\n")
         #     print("Delta_0:         ", [glb(i) for i in zip(*sample_functions)], "\n")
 
-        fn_time, delta_ast_part_result = run_test_case(delta_ast_partition, lattice, sample_functions)
-        delta_results[Delta.AST_PART].update_times(fn_time, n)
+        fn_time, delta_ast_overlapping_result = run_test_case(delta_ast_overlapping_partition, lattice, sample_functions)
+        delta_results[Delta.AST_OVERLAP].update_times(fn_time, n)
         if verbose:
-            print("Delta*(OVERLAP): ", repr(delta_ast_part_result))
+            print("Delta*(OVERLAP): ", repr(delta_ast_overlapping_result))
             print("-- Time:", fn_time, "\n")
 
-        fn_time, delta_ast_part_b_result = run_test_case(delta_ast_partition_b, lattice, sample_functions)
-        delta_results[Delta.AST_PART_B].update_times(fn_time, n)
+        fn_time, delta_ast_part_result = run_test_case(delta_ast_partition, lattice, sample_functions)
+        delta_results[Delta.AST_LATEST].update_times(fn_time, n)
         if verbose:
-            print("Delta*(PART+O2): ", repr(delta_ast_part_b_result))
+            print("Delta*(PART+O2): ", repr(delta_ast_part_result))
             print("-- Time:", fn_time, "\n")
 
         fn_time = time()
@@ -839,10 +945,10 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
             delta_results[Delta.FOO].errors.append((sample_functions, delta_foo_result, delta_max_result))
         # if delta_foo_b_result != delta_max_result:
         #     delta_results[Delta.FOO_B].errors.append((sample_functions, delta_foo_b_result, delta_max_result))
+        if delta_ast_overlapping_result != delta_max_result:
+            delta_results[Delta.AST_OVERLAP].errors.append((sample_functions, delta_ast_overlapping_result, delta_max_result))
         if delta_ast_part_result != delta_max_result:
-            delta_results[Delta.AST_PART].errors.append((sample_functions, delta_ast_part_result, delta_max_result))
-        if delta_ast_part_b_result != delta_max_result:
-            delta_results[Delta.AST_PART_B].errors.append((sample_functions, delta_ast_part_b_result, delta_max_result))
+            delta_results[Delta.AST_LATEST].errors.append((sample_functions, delta_ast_part_result, delta_max_result))
 
     print("Number of iterations:", n)
 
@@ -870,9 +976,10 @@ def write_test_results_csv(name, results):
     if results:
         headers = ["Lattice", "Nodes", "Space Functions", "Test Functions", "Elapsed Time", "Preprocessing Time"]
         for delta_result in results[0]["result"]:
-            headers.append("{} Average".format(delta_result.name))
-            headers.append("{} Min".format(delta_result.name))
-            headers.append("{} Max".format(delta_result.name))
+            if not delta_result.skip_times:
+                headers.append("{} Average".format(delta_result.name))
+                headers.append("{} Min".format(delta_result.name))
+                headers.append("{} Max".format(delta_result.name))
             headers.append("{} Errors".format(delta_result.name))
         with open(relative_path("results", name), 'w', newline='') as f:
             writer = csv.writer(f)
@@ -887,9 +994,10 @@ def write_test_results_csv(name, results):
                     result["preproc"]
                 ]
                 for delta_result in result["result"]:
-                    row.append(delta_result.avg_time)
-                    row.append(delta_result.min_time)
-                    row.append(delta_result.max_time)
+                    if not delta_result.skip_times:
+                        row.append(delta_result.avg_time)
+                        row.append(delta_result.min_time)
+                        row.append(delta_result.max_time)
                     row.append(len(delta_result.errors))
                 writer.writerow(row)
         print("[i] Generated CSV file {}".format(name))
@@ -1069,14 +1177,42 @@ def run_random_space_functions():
     else:
         print("All the resulting functions are \x1b[32mvalid\x1b[0m")
 
-def run_powerset():
-    from lattice import powerset_lattice, Lattice
-    start_time = time()
+def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests = 10, n_functions = 2):
+    """ Run all the delta algorithms against a powerset lattice and
+        `test_functions`, either random or explicit, similar to the run command,
+        and present the results.
 
+        INPUTS:
+        - exponent:
+            The number of base elements for the powerset, the total number of
+            elements in the lattice is 2 ** n.
+        - verbose:
+            - If `True`, show each test case, the individual results, and a
+            summary of failing test cases.
+            - If `False` (default), only show failing test cases.
+        - test_functions:
+            The list of space-functions to test against. By default, if no 
+            `test_functions` are provided, generates random test_functions.
+        - n_tests:
+            If `test_functions` is None, indicates the number of test to run
+            with `n_functions` random test functions.
+        - n_functions:
+            If `test_funtions` is None, indicates how many random test
+            functions to use per test-case.
+        
+        OUPUTS:
+            Returns a dictionary with the acumulated results, including timings
+            and failures (if any).
+    """
+    from lattice import Lattice, powerset_lattice
+    # Used to calculate the elapsed time
+    start_time = time()
     # The actual number of elements in the lattice = 2^n
-    exponent = 10
     elements = 2**exponent
-    print("[i] Generating powerset lattice with {} nodes".format(elements))
+    # The total number space functions available
+    space_functions_len = elements ** exponent
+
+    eprint("[i] Generating powerset lattice with {} nodes".format(elements))
 
     # Generate the powerset lattice and measure times
     gen_time = time()
@@ -1093,39 +1229,95 @@ def run_powerset():
     IMPLs = lattice.impls
     preproc_time = time() - preproc_time
 
+    if test_functions is None:
+        n = n_tests
+    else:
+        valid_input = True
+        test_pairs = tuple(combinations(range(len(lattice)), 2))
+        for fn in test_functions:
+            if not lattice.is_fn_distributive(fn, test_pairs):
+                print("[E] Invalid Test Function found:", repr(fn))
+                valid_input = False
+        if not valid_input:
+            print("[E] Aborting due to previous error!")
+            return {}
+
     print("LUBs, GLBs, IMPLYs preprocessing time:", preproc_time)
     print("________________________________________________________________\n")
     
     # Used for showing the aggregate results at the end
     delta_results = {
         Delta.FOO: TestResults("Delta_foo(V4)"),
-        # Delta.FOO_B: TestResults("Delta_foo(V3)"),
-        Delta.AST_PART_B: TestResults("Delta*(PART+O2)")
+        Delta.FOO_B: TestResults("Delta_foo(V3)"),
+        Delta.AST: TestResults("Delta+"),
+        Delta.AST_V2: TestResults("Delta++"),
+        Delta.AST_V3: TestResults("Delta+3"),
+        Delta.AST_V4: TestResults("Delta+4"),
+        Delta.AST_LATEST: TestResults("Delta+5"),
     }
-    deltas_are_equal = TestResults("assert_equal(Delta_foo(V4), Delta*(PART+02))")
+    deltas_are_equal = TestResults("assert_equal(Delta_foo(V4), Delta+5)", True)
 
-    # Number of iterations
-    n = 10
-
-    print("Running ", end='', flush=True)
+    eprint("Running ", end='')
     for _ in range(n):
         # Get some space functions at random or use given ones
-        sample_functions = [random_space_function(lattice) for _ in range(4)]
+        if test_functions is None:
+            sample_functions = [random_space_function(lattice) for _ in range(4)]
+        else:
+            sample_functions = test_functions
+
+        if verbose:
+            print("__________Space Functions__________\n")
+            for fn in sample_functions:
+                print(fn)
+            print("___________________________________\n")
 
         fn_time, delta_foo_result = run_test_case(delta_foo, lattice_matrix, sample_functions)
         delta_results[Delta.FOO].update_times(fn_time, n)
-        
-        # fn_time, _ = run_test_case(delta_foo_b, lattice_matrix, sample_functions)
-        # delta_results[Delta.FOO_B].update_times(fn_time, n)
+        if verbose:
+            print("{}: {}".format(delta_results[Delta.FOO].name, repr(delta_foo_result)))
+            print("-- Time: {}\n".format(fn_time))
 
-        fn_time, delta_ast_partition_b_result = run_test_case(delta_ast_partition_b, lattice_matrix, sample_functions)
-        delta_results[Delta.AST_PART_B].update_times(fn_time, n)
+        fn_time, delta_foo_b_result = run_test_case(delta_foo_b, lattice_matrix, sample_functions)
+        delta_results[Delta.FOO_B].update_times(fn_time, n)
+        if verbose:
+            print("{}: {}".format(delta_results[Delta.FOO_B].name, repr(delta_foo_b_result)))
+            print("-- Time: {}\n".format(fn_time))
 
-        if delta_foo_result != delta_ast_partition_b_result:
-            deltas_are_equal.errors.append((sample_functions, delta_foo_result, delta_ast_partition_b_result))
+        fn_time, delta_ast_result = run_test_case(delta_ast, lattice_matrix, sample_functions)
+        delta_results[Delta.AST].update_times(fn_time, n)
+        if verbose:
+            print("{}: {}".format(delta_results[Delta.AST].name, repr(delta_ast_result)))
+            print("-- Time: {}\n".format(fn_time))
 
-        print(".", end='', flush=True)
-    print("")
+        fn_time, delta_ast_v2_result = run_test_case(delta_ast_v2, lattice_matrix, sample_functions)
+        delta_results[Delta.AST_V2].update_times(fn_time, n)
+        if verbose:
+            print("{}: {}".format(delta_results[Delta.AST_V2].name, repr(delta_ast_v2_result)))
+            print("-- Time: {}\n".format(fn_time))
+
+        fn_time, delta_ast_v3_result = run_test_case(delta_ast_v3, lattice_matrix, sample_functions)
+        delta_results[Delta.AST_V3].update_times(fn_time, n)
+        if verbose:
+            print("{}: {}".format(delta_results[Delta.AST_V3].name, repr(delta_ast_v3_result)))
+            print("-- Time: {}\n".format(fn_time))
+
+        fn_time, delta_ast_v4_result = run_test_case(delta_ast_v4, lattice_matrix, sample_functions)
+        delta_results[Delta.AST_V4].update_times(fn_time, n)
+        if verbose:
+            print("{}: {}".format(delta_results[Delta.AST_V4].name, repr(delta_ast_v4_result)))
+            print("-- Time: {}\n".format(fn_time))
+
+        fn_time, delta_ast_partition_result = run_test_case(delta_ast_partition, lattice_matrix, sample_functions)
+        delta_results[Delta.AST_LATEST].update_times(fn_time, n)
+        if verbose:
+            print("{}: {}".format(delta_results[Delta.AST_LATEST].name, repr(delta_ast_partition_result)))
+            print("-- Time: {}\n".format(fn_time))
+
+        if delta_foo_result != delta_ast_partition_result:
+            deltas_are_equal.errors.append((sample_functions, delta_foo_result, delta_ast_partition_result))
+
+        eprint(".", end='')
+    eprint("")
 
     print("Number of iterations:", n)
 
@@ -1135,11 +1327,35 @@ def run_powerset():
     for result in delta_results.values():
         result.print_times()
 
+    delta_results[Delta.OTHER] = deltas_are_equal
+
     elapsed_time = time() - start_time
     print("\nTotal time:", elapsed_time)
+    return {"result": delta_results.values(), "total": elapsed_time, "sf": space_functions_len, "sf_gen_time": gen_time, "preproc": preproc_time}
+
+def run_full_powerset_tests():
+    from datetime import datetime
+    results = []
+    start_time = datetime.now().strftime("%Y-%m-%d-%H%M")
+    for exponent in range(8, 11):
+        nodes = 2**exponent
+        print("* Using lattice `Powerset_{}` ({} nodes)".format(exponent, nodes))
+        for i in [4, 8, 12, 16]:
+            print("\nTest Functions:", i)
+            result = run_powerset(exponent, n_functions=i)
+            result["lattice"] = "Powerset_{}".format(exponent)
+            result["nodes"] = nodes
+            result["functions"] = i
+            results.append(result)
+        print("================================================================\n")
+    write_test_results_csv("results-{}.csv".format(start_time), results)
 
 def run_space_projection():
     from lattice import Lattice, lattice_from_covers
+    # 0 = bottom
+    # 1 = a
+    # 2 = b
+    # 3 = top 
     covers = [[], [0], [0], [1, 2]]
     space_functions = [(0, 2, 1, 3), (0, 3, 2, 3)]
     lattice = Lattice(lattice_from_covers(covers))
@@ -1154,11 +1370,12 @@ def run_space_projection():
     for fn in space_functions:
         print(fn)
     print("___________________________________\n")
+    print("Pi_1 a:", i_projection(lattice.lattice, space_functions[0], 2))
     print("Space Projection:", space_projection(lattice.lattice, space_functions))
 
 
 if __name__ == "__main__":
-    run_full_tests()
+    # run_full_tests()
     # run_square()
     # run_random()
     # run_failling_foo()
@@ -1166,3 +1383,4 @@ if __name__ == "__main__":
     # run_random_space_functions()
     # run_powerset()
     # run_space_projection()
+    run_full_powerset_tests()

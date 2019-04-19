@@ -221,10 +221,10 @@ def delta_ast(lattice, functions):
     """
     n = len(lattice)
     fn_number = len(functions)
-    # All possible tuples to later calculate if tuple t > c
-    tuples = list(product(range(n), repeat=fn_number))
     delta = [0 for i in range(n)]
     for c in range(n):
+        # All possible tuples to later calculate if tuple t > c
+        tuples = product(range(n), repeat=fn_number)
         derives_c = (lub(apply_fns(functions, i)) for i in tuples if lattice[lub(i)][c] == 1)
         delta[c] = glb(derives_c)
     return delta
@@ -1209,8 +1209,6 @@ def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests 
     start_time = time()
     # The actual number of elements in the lattice = 2^n
     elements = 2**exponent
-    # The total number space functions available
-    space_functions_len = elements ** exponent
 
     eprint("[i] Generating powerset lattice with {} nodes".format(elements))
 
@@ -1248,9 +1246,9 @@ def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests 
     # Used for showing the aggregate results at the end
     delta_results = {
         Delta.FOO: TestResults("Delta_foo(V4)"),
-        Delta.FOO_B: TestResults("Delta_foo(V3)"),
-        Delta.AST: TestResults("Delta+"),
-        Delta.AST_V2: TestResults("Delta++"),
+        # Delta.FOO_B: TestResults("Delta_foo(V3)"),
+        # Delta.AST: TestResults("Delta+"),
+        # Delta.AST_V2: TestResults("Delta++"),
         Delta.AST_V3: TestResults("Delta+3"),
         Delta.AST_V4: TestResults("Delta+4"),
         Delta.AST_LATEST: TestResults("Delta+5"),
@@ -1276,36 +1274,48 @@ def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests 
         if verbose:
             print("{}: {}".format(delta_results[Delta.FOO].name, repr(delta_foo_result)))
             print("-- Time: {}\n".format(fn_time))
+        
+        eprint(":", end='')
 
-        fn_time, delta_foo_b_result = run_test_case(delta_foo_b, lattice_matrix, sample_functions)
-        delta_results[Delta.FOO_B].update_times(fn_time, n)
-        if verbose:
-            print("{}: {}".format(delta_results[Delta.FOO_B].name, repr(delta_foo_b_result)))
-            print("-- Time: {}\n".format(fn_time))
+        # fn_time, delta_foo_b_result = run_test_case(delta_foo_b, lattice_matrix, sample_functions)
+        # delta_results[Delta.FOO_B].update_times(fn_time, n)
+        # if verbose:
+        #     print("{}: {}".format(delta_results[Delta.FOO_B].name, repr(delta_foo_b_result)))
+        #     print("-- Time: {}\n".format(fn_time))
+        
+        # eprint(":", end='')
 
-        fn_time, delta_ast_result = run_test_case(delta_ast, lattice_matrix, sample_functions)
-        delta_results[Delta.AST].update_times(fn_time, n)
-        if verbose:
-            print("{}: {}".format(delta_results[Delta.AST].name, repr(delta_ast_result)))
-            print("-- Time: {}\n".format(fn_time))
+        # fn_time, delta_ast_result = run_test_case(delta_ast, lattice_matrix, sample_functions)
+        # delta_results[Delta.AST].update_times(fn_time, n)
+        # if verbose:
+        #     print("{}: {}".format(delta_results[Delta.AST].name, repr(delta_ast_result)))
+        #     print("-- Time: {}\n".format(fn_time))
+        
+        # eprint(":", end='')
 
-        fn_time, delta_ast_v2_result = run_test_case(delta_ast_v2, lattice_matrix, sample_functions)
-        delta_results[Delta.AST_V2].update_times(fn_time, n)
-        if verbose:
-            print("{}: {}".format(delta_results[Delta.AST_V2].name, repr(delta_ast_v2_result)))
-            print("-- Time: {}\n".format(fn_time))
+        # fn_time, delta_ast_v2_result = run_test_case(delta_ast_v2, lattice_matrix, sample_functions)
+        # delta_results[Delta.AST_V2].update_times(fn_time, n)
+        # if verbose:
+        #     print("{}: {}".format(delta_results[Delta.AST_V2].name, repr(delta_ast_v2_result)))
+        #     print("-- Time: {}\n".format(fn_time))
+        
+        # eprint(":", end='')
 
         fn_time, delta_ast_v3_result = run_test_case(delta_ast_v3, lattice_matrix, sample_functions)
         delta_results[Delta.AST_V3].update_times(fn_time, n)
         if verbose:
             print("{}: {}".format(delta_results[Delta.AST_V3].name, repr(delta_ast_v3_result)))
             print("-- Time: {}\n".format(fn_time))
+        
+        eprint(":", end='')
 
         fn_time, delta_ast_v4_result = run_test_case(delta_ast_v4, lattice_matrix, sample_functions)
         delta_results[Delta.AST_V4].update_times(fn_time, n)
         if verbose:
             print("{}: {}".format(delta_results[Delta.AST_V4].name, repr(delta_ast_v4_result)))
             print("-- Time: {}\n".format(fn_time))
+        
+        eprint(":", end='')
 
         fn_time, delta_ast_partition_result = run_test_case(delta_ast_partition, lattice_matrix, sample_functions)
         delta_results[Delta.AST_LATEST].update_times(fn_time, n)
@@ -1331,18 +1341,18 @@ def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests 
 
     elapsed_time = time() - start_time
     print("\nTotal time:", elapsed_time)
-    return {"result": delta_results.values(), "total": elapsed_time, "sf": space_functions_len, "sf_gen_time": gen_time, "preproc": preproc_time}
+    return {"result": delta_results.values(), "total": elapsed_time, "sf": 0, "sf_gen_time": gen_time, "preproc": preproc_time}
 
 def run_full_powerset_tests():
     from datetime import datetime
     results = []
     start_time = datetime.now().strftime("%Y-%m-%d-%H%M")
-    for exponent in range(8, 11):
+    for exponent in range(10, 11):
         nodes = 2**exponent
         print("* Using lattice `Powerset_{}` ({} nodes)".format(exponent, nodes))
         for i in [4, 8, 12, 16]:
             print("\nTest Functions:", i)
-            result = run_powerset(exponent, n_functions=i)
+            result = run_powerset(exponent, n_tests=5, n_functions=i)
             result["lattice"] = "Powerset_{}".format(exponent)
             result["nodes"] = nodes
             result["functions"] = i

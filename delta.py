@@ -1259,7 +1259,7 @@ def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests 
     for _ in range(n):
         # Get some space functions at random or use given ones
         if test_functions is None:
-            sample_functions = [random_space_function(lattice) for _ in range(4)]
+            sample_functions = [random_space_function(lattice) for _ in range(n_functions)]
         else:
             sample_functions = test_functions
 

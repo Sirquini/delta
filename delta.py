@@ -5,7 +5,7 @@ from enum import Enum
 from itertools import product
 from itertools import combinations
 from itertools import permutations
-from time import time
+from time import perf_counter
 
 def calculate_lubs(lattice):
     """ Calculate the matrix of Lower Upper Bounds for the `lattice`.
@@ -774,9 +774,9 @@ def run_test_case(fn, lattice, test_functions):
         
         Returns the execution_time and the result.
     """
-    fn_time = time()
+    fn_time = perf_counter()
     result = fn(lattice, test_functions)
-    fn_time = time() - fn_time
+    fn_time = perf_counter() - fn_time
     return fn_time, result
 
 def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functions = 2, fns_file = None, save_functions = False):
@@ -813,24 +813,24 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
             and failures (if any).
     """
     # Used to calculate elapsed time
-    start_time = time()
+    start_time = perf_counter()
     # Number of iterations to test (test-cases)
     n = 1
 
-    preproc_time = time()
+    preproc_time = perf_counter()
     # Matrix of least upper bounds and greatest lower bounds
     global LUBs, GLBs, IMPLs
     LUBs = calculate_lubs(lattice)
     GLBs = calculate_glbs(lattice)
     IMPLs = calculate_implications(lattice)
-    preproc_time = time() - preproc_time
+    preproc_time = perf_counter() - preproc_time
 
     # Valitdate the input lattice
     if not is_lattice(lattice):
         print("[e] Invalid lattice, aborting execution!")
         return {}
 
-    func_gen_time = time()
+    func_gen_time = perf_counter()
     if fns_file is None:
         # Calculate space functions.
         space_functions = generate_functions(len(lattice))
@@ -847,7 +847,7 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
             # Calculate space functions.
             space_functions = generate_functions(len(lattice))
     
-    validation_time = time()
+    validation_time = perf_counter()
     # By default use from 1 to `n`, inclusive, random test_functions
     # if none are provided, or check the test_functions
     # provided by the user.
@@ -864,8 +864,8 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
             print ("[E] Aborting execution!")
             return {}
     
-    validation_time = time() - validation_time
-    func_gen_time = time() - func_gen_time - validation_time
+    validation_time = perf_counter() - validation_time
+    func_gen_time = perf_counter() - func_gen_time - validation_time
 
     print("Space functions:", len(space_functions))
     print("Space functions preprocessing time:   ", func_gen_time)
@@ -933,9 +933,9 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
             print("Delta*(PART+O2): ", repr(delta_ast_part_result))
             print("-- Time:", fn_time, "\n")
 
-        fn_time = time()
+        fn_time = perf_counter()
         delta_max_result = delta_n(lattice, space_functions, sample_functions)
-        fn_time = time() - fn_time
+        fn_time = perf_counter() - fn_time
         delta_results[Delta.N].update_times(fn_time, n)
         if verbose:
             print("Delta:           ", repr(delta_max_result))
@@ -968,7 +968,7 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
     for result in delta_results.values():
         result.print_times()
 
-    elapsed_time = time() - start_time
+    elapsed_time = perf_counter() - start_time
     print("\nTotal time:", elapsed_time)
     return {"result": delta_results.values(), "total": elapsed_time, "sf": len(space_functions), "sf_gen_time": func_gen_time, "preproc": preproc_time}
 
@@ -1082,21 +1082,21 @@ def run_lattice_implementations():
     print("* Using lattice:", covers)
     lattice_matrix = lattice_from_covers(covers)
 
-    start_time = time()
+    start_time = perf_counter()
 
     # Compare the LUBs, GLBs generation
-    legacy_time = time()
+    legacy_time = perf_counter()
     legacy_lubs = calculate_lubs(lattice_matrix)
     legacy_glbs = calculate_glbs(lattice_matrix)
-    legacy_time = time() - legacy_time
+    legacy_time = perf_counter() - legacy_time
 
     print("Legacy implementation LUBs, GLBs time:", legacy_time)
 
     # The new implementation encapsulates the LUBs and GLBs as part
     # of the Lattice object and are generated on initialization
-    new_time = time()
+    new_time = perf_counter()
     new_lattice = Lattice(lattice_matrix)
-    new_time = time() - new_time
+    new_time = perf_counter() - new_time
 
     print("New implementation LUBs, GLBs time:   ", new_time)
 
@@ -1112,17 +1112,17 @@ def run_lattice_implementations():
     GLBs = legacy_glbs
 
     # Compare the IMPLs generation
-    legacy_time = time()
+    legacy_time = perf_counter()
     legacy_impls = calculate_implications(lattice_matrix)
-    legacy_time = time() - legacy_time
+    legacy_time = perf_counter() - legacy_time
 
     print("Legacy implementation IMPLs time:", legacy_time)
 
     # The new implementation encapsulates the LUBs and GLBs as part
     # of the Lattice object and are generated on initialization
-    new_time = time()
+    new_time = perf_counter()
     new_impls = new_lattice.impls
-    new_time = time() - new_time
+    new_time = perf_counter() - new_time
 
     print("New implementation IMPLs time:   ", new_time)
 
@@ -1133,15 +1133,15 @@ def run_lattice_implementations():
         print("The resulting matrices are \x1b[32mequal\x1b[0m")
 
     # Compare space_functions generation
-    legacy_time = time()
+    legacy_time = perf_counter()
     legacy_space_fns = generate_functions(len(lattice_matrix))
-    legacy_time = time() - legacy_time
+    legacy_time = perf_counter() - legacy_time
 
     print("Legacy implementation space_functions time:", legacy_time)
 
-    new_time = time()
+    new_time = perf_counter()
     new_space_fns = new_lattice.space_functions
-    new_time = time() - new_time
+    new_time = perf_counter() - new_time
 
     print("New implementation space_functions time:   ", new_time)
 
@@ -1151,7 +1151,7 @@ def run_lattice_implementations():
     else:
         print("All the resulting functions are \x1b[32mequal\x1b[0m")
     
-    elapsed_time = time() - start_time
+    elapsed_time = perf_counter() - start_time
     print("\nElapsed time:", elapsed_time)
 
 def run_random_space_functions():
@@ -1211,26 +1211,26 @@ def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests 
     """
     from lattice import Lattice, powerset_lattice
     # Used to calculate the elapsed time
-    start_time = time()
+    start_time = perf_counter()
     # The actual number of elements in the lattice = 2^n
     elements = 2**exponent
 
     eprint("[i] Generating powerset lattice with {} nodes".format(elements))
 
     # Generate the powerset lattice and measure times
-    gen_time = time()
+    gen_time = perf_counter()
     lattice_matrix = powerset_lattice(exponent)
-    gen_time = time() - gen_time
+    gen_time = perf_counter() - gen_time
     print("Lattice generation time:", gen_time)
 
-    preproc_time = time()
+    preproc_time = perf_counter()
     lattice = Lattice(lattice_matrix)
     # Generate the necessary globals
     global LUBs, GLBs, IMPLs
     LUBs = lattice.lubs
     GLBs = lattice.glbs
     IMPLs = lattice.impls
-    preproc_time = time() - preproc_time
+    preproc_time = perf_counter() - preproc_time
 
     if test_functions is None:
         n = n_tests
@@ -1254,7 +1254,7 @@ def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests 
         # Delta.FOO_B: TestResults("Delta_foo(V3)"),
         # Delta.AST: TestResults("Delta+"),
         # Delta.AST_V2: TestResults("Delta++"),
-        Delta.AST_V3: TestResults("Delta+3"),
+        # Delta.AST_V3: TestResults("Delta+3"),
         Delta.AST_V4: TestResults("Delta+4"),
         Delta.AST_LATEST: TestResults("Delta+5"),
     }
@@ -1291,6 +1291,7 @@ def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests 
         # eprint(":", end='')
 
         # fn_time, delta_ast_result = run_test_case(delta_ast, lattice_matrix, sample_functions)
+        # fn_time, delta_ast_result = (0.0, [0])
         # delta_results[Delta.AST].update_times(fn_time, n)
         # if verbose:
         #     print("{}: {}".format(delta_results[Delta.AST].name, repr(delta_ast_result)))
@@ -1306,13 +1307,13 @@ def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests 
         
         # eprint(":", end='')
 
-        fn_time, delta_ast_v3_result = run_test_case(delta_ast_v3, lattice_matrix, sample_functions)
-        delta_results[Delta.AST_V3].update_times(fn_time, n)
-        if verbose:
-            print("{}: {}".format(delta_results[Delta.AST_V3].name, repr(delta_ast_v3_result)))
-            print("-- Time: {}\n".format(fn_time))
+        # fn_time, delta_ast_v3_result = run_test_case(delta_ast_v3, lattice_matrix, sample_functions)
+        # delta_results[Delta.AST_V3].update_times(fn_time, n)
+        # if verbose:
+        #     print("{}: {}".format(delta_results[Delta.AST_V3].name, repr(delta_ast_v3_result)))
+        #     print("-- Time: {}\n".format(fn_time))
         
-        eprint(":", end='')
+        # eprint(":", end='')
 
         fn_time, delta_ast_v4_result = run_test_case(delta_ast_v4, lattice_matrix, sample_functions)
         delta_results[Delta.AST_V4].update_times(fn_time, n)
@@ -1344,7 +1345,7 @@ def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests 
 
     delta_results[Delta.OTHER] = deltas_are_equal
 
-    elapsed_time = time() - start_time
+    elapsed_time = perf_counter() - start_time
     print("\nTotal time:", elapsed_time)
     return {"result": delta_results.values(), "total": elapsed_time, "sf": 0, "sf_gen_time": gen_time, "preproc": preproc_time}
 
@@ -1355,7 +1356,7 @@ def run_full_powerset_tests():
     for exponent in range(10, 11):
         nodes = 2**exponent
         print("* Using lattice `Powerset_{}` ({} nodes)".format(exponent, nodes))
-        for i in [4, 8, 12, 16]:
+        for i in [4, 8, 12, 16]: # TODO: Restore this to [4, 8, 12, 16]. Use only [4] for 4 and 5. Since Delta+ is O(mn^m), where m=n_functions 
             print("\nTest Functions:", i)
             result = run_powerset(exponent, n_tests=5, n_functions=i)
             result["lattice"] = "Powerset_{}".format(exponent)
@@ -1385,6 +1386,8 @@ def run_space_projection():
     for fn in space_functions:
         print(fn)
     print("___________________________________\n")
+    for c in range(len(lattice)):
+        print("{}: {}".format(c, i_projection(lattice.lattice, space_functions[1], c)))
     print("Pi_1 a:", i_projection(lattice.lattice, space_functions[0], 2))
     print("Space Projection:", space_projection(lattice.lattice, space_functions))
 
@@ -1396,6 +1399,6 @@ if __name__ == "__main__":
     # run_failling_foo()
     # run_lattice_implementations()
     # run_random_space_functions()
-    # run_powerset()
+    run_powerset(exponent=8, n_functions=4, n_tests=1)
     # run_space_projection()
-    run_full_powerset_tests()
+    # run_full_powerset_tests()

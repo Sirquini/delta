@@ -311,6 +311,8 @@ def partition_helper_v4(lattice, functions, first, last, c):
         - With imply
         - Only checks elements <= c
     """
+    if c == 0:
+        return 0
     fn_num = last - first
     if fn_num == 1:
         return functions[first][c]
@@ -333,6 +335,9 @@ def partition_helper(lattice, functions, first, last, c):
     cached_result = HELPER_CACHE[c][first][last-1]
     if cached_result is not None:
         return cached_result
+    # No need to compute for the bottom
+    if c == 0:
+        return 0
     fn_num = last - first
     if fn_num == 1:
         return functions[first][c]

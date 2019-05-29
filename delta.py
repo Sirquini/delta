@@ -191,6 +191,22 @@ def random_space_function(lattice):
             result[i] = lattice.lub((result[atom] for atom in all_atoms if lattice.lattice[i][atom] == 1))
     return result
 
+def decode_powerset_function(lattice, encoded_fn):
+    n = len(lattice)
+    all_atoms = lattice.atoms()
+    result = [0 for _ in range(n)]
+    # Map 0
+    result = [0 for _ in range(n)]
+    # Map all atoms to a random value
+    for pos, atom in enumerate(all_atoms):
+        result[atom] = encoded_fn[pos]
+    # Map all other values
+    for i in range(1, n):
+        if i not in all_atoms:
+            # f(c) = Vf(a_i) where Va_i = c and each a_i is an atom.
+            result[i] = lattice.lub((result[atom] for atom in all_atoms if lattice.lattice[i][atom] == 1))
+    return result
+
 def i_projection(lattice, function, c):
     """ Return the i-projection of c for the `lattice`.
 
@@ -1468,29 +1484,37 @@ def run_powerset_space_function_pairs():
     print("================================================================\n")
 
 def test_space_functions():
-    from lattice import Lattice, lattice_from_covers
-    covers = [[], [0], [0], [1, 2], [0], [1, 4], [2, 4], [3, 5, 6], [0], [1, 8], [2, 8], [3, 9, 10], [4, 8], [5, 9, 12], [6, 10, 12], [7, 11, 13, 14]]
-    lattice = Lattice(lattice_from_covers(covers))
+    from lattice import Lattice, powerset_lattice
+    # covers = [[], [0], [0], [1, 2], [0], [1, 4], [2, 4], [3, 5, 6], [0], [1, 8], [2, 8], [3, 9, 10], [4, 8], [5, 9, 12], [6, 10, 12], [7, 11, 13, 14]]
+    # lattice = Lattice(lattice_from_covers(covers))
 
-    space_functions = [
-        (0, 9, 14, 15, 15, 15, 15, 15, 11, 11, 15, 15, 15, 15, 15, 15),
-        (0, 10, 9, 11, 0, 10, 9, 11, 12, 14, 13, 15, 12, 14, 13, 15)]
+    lattice = Lattice(powerset_lattice(5))
+
+    encoded_space_functions = [
+        (9, 30, 31, 27, 10),
+        (10, 8, 0, 25, 9),
+    ]
+
+    # space_functions = [
+    #     (0, 9, 14, 15, 15, 15, 15, 15, 11, 11, 15, 15, 15, 15, 15, 15),
+    #     (0, 10, 9, 11, 0, 10, 9, 11, 12, 14, 13, 15, 12, 14, 13, 15)]
 
     # Globals used implicitly
     global LUBs, GLBs
     LUBs = lattice.lubs
     GLBs = lattice.glbs
 
-    for sf in space_functions:
+    for sf in encoded_space_functions:
+        sf = decode_powerset_function(lattice, sf)
         test_pairs = combinations(range(len(lattice)), 2)
         if lattice.is_fn_distributive(sf, test_pairs):
             print("\x1b[32mvalid\x1b[0m", sf)
         else:
             print("\x1b[31mINVALID\x1b[0m", sf)
-    _, result = run_test_case(delta_foo_b, lattice.lattice, space_functions)
+    _, result = run_test_case(delta_foo_b, lattice.lattice, [decode_powerset_function(lattice, sf) for sf in encoded_space_functions])
     print("Updates:", FUNCTION_UPDATES)
     print("Result:", result)
-    print("Delta_0:", [glb(i) for i in zip(*space_functions)])
+    print("Delta_0:", [glb(i) for i in zip(*[decode_powerset_function(lattice, sf) for sf in encoded_space_functions])])
 
 
 if __name__ == "__main__":

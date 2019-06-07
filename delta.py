@@ -194,10 +194,9 @@ def random_space_function(lattice):
 def decode_powerset_function(lattice, encoded_fn):
     n = len(lattice)
     all_atoms = lattice.atoms()
-    result = [0 for _ in range(n)]
     # Map 0
     result = [0 for _ in range(n)]
-    # Map all atoms to a random value
+    # Map all atoms to the values of encoded_fn
     for pos, atom in enumerate(all_atoms):
         result[atom] = encoded_fn[pos]
     # Map all other values
@@ -1438,10 +1437,10 @@ def run_space_projection():
 
 def run_powerset_space_function_pairs():
     """ Find the pair of space functions such that the execution of delta_foo
-        requires the maximum ammount of updates to the candidate_function.
+        requires the maximum ammount of updates of the candidate_function.
 
         This required the modification of delta_foo_b, adding a global counter
-        and observing when the candidate function updates. FUNCTION_UPDATES
+        and observing when the candidate_function updates. FUNCTION_UPDATES
     """
     from lattice import process_file, Lattice, covers_from_lattice, powerset_lattice
     # ID of the lattice
@@ -1515,6 +1514,13 @@ def test_space_functions():
     print("Updates:", FUNCTION_UPDATES)
     print("Result:", result)
     print("Delta_0:", [glb(i) for i in zip(*[decode_powerset_function(lattice, sf) for sf in encoded_space_functions])])
+
+def run_space_functions_for_m():
+    from lattice import Lattice    
+    for i in range(5, 9):
+        print("__\n* Using lattice M{} ({} nodes)".format(i - 2, i))
+        lattice = Lattice(lattice_m(i))
+        print("Space Functions:", len(lattice.space_functions))
 
 
 if __name__ == "__main__":

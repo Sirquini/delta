@@ -1517,11 +1517,25 @@ def test_space_functions():
 
 def run_space_functions_for_m():
     from lattice import Lattice    
-    for i in range(5, 9):
+    for i in range(9, 11):
         print("__\n* Using lattice M{} ({} nodes)".format(i - 2, i))
         lattice = Lattice(lattice_m(i))
         print("Space Functions:", len(lattice.space_functions))
 
+def all_space_functions_diagram():
+    from lattice import Lattice
+    lattice = Lattice(lattice_m(6))
+    total = len(lattice.space_functions)
+    for pos, sf in enumerate(lattice.space_functions):
+        file_name = "lattice_m4_sf_{}.gv".format(pos)
+        fns_file_path = relative_path("results", "diagrams", file_name)
+        # Check if the file already exists
+        if os.path.isfile(fns_file_path):
+            print("[i] File `{}` already exist. Skipping.".format(file_name))
+        else:
+            print("[i] Generating space function {}/{}".format(pos + 1, total))
+            # Save the diagram to a file
+            lattice.diagram(sf).render(fns_file_path, cleanup=True)        
 
 if __name__ == "__main__":
     # run_full_tests()
@@ -1534,4 +1548,6 @@ if __name__ == "__main__":
     # run_space_projection()
     # run_full_powerset_tests()
     # run_powerset_space_function_pairs()
-    test_space_functions()
+    # test_space_functions()
+    run_space_functions_for_m()
+    # all_space_functions_diagram()

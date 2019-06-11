@@ -2,6 +2,7 @@ import os
 import random
 from itertools import combinations, product
 from delta import calculate_lubs, calculate_glbs
+from graphviz import Digraph
 
 # ######################################
 #  Utility functions for handling files
@@ -116,6 +117,22 @@ class Lattice:
         if self._impls is None:
            self._impls = self._calculate_implications()
         return self._impls
+
+    def diagram(self, space_function=None):
+        """ Returns the graphviz Digraph representation of the lattice for
+            further manipulation or DOT language representation.
+        """
+        graph = Digraph("Lattice",edge_attr={"arrowhead": "none"})
+        for i in range(len(self)):
+            graph.node(str(i))
+        for pos, nodes in enumerate(covers_from_lattice(self.lattice)):
+            for node in nodes:
+                graph.edge(str(pos), str(node))
+        if space_function is not None:
+            graph.attr("edge", arrowhead="normal", color="blue", constraint="false")
+            for pos, val in enumerate(space_function):
+                graph.edge(str(pos), str(val))
+        return graph
 
     def _generate_space_functions(self):
         """ Generate a list of space functions, based on the lattice.
@@ -631,4 +648,8 @@ if __name__ == "__main__":
     expected = [[], [0], [0], [0], [0], [1,2], [1,3], [1,4], [2,3], [2,4], [3,4], [5,6,8], [5,7,9], [6,7,10], [8,9,10], [11,12,13,14]]
     actual = covers_from_lattice(powerset_lattice(4))
     test_equality(expected, actual, "Powerset(4) covers")
+
+    space_function = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    diagram = Lattice(powerset_lattice(4)).diagram(space_function)
+    diagram.render(directory="results",view=True)
 

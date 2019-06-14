@@ -530,9 +530,71 @@ def delta_foo_b(lattice, functions):
         Alternate version of `delta_foo` used for A/B Testing, with a sanity
         check that imposes a performance penalty.
     """
-    # Temporal global for testing
-    global FUNCTION_UPDATES
-    FUNCTION_UPDATES = 0
+    n = len(lattice)
+    # Here candidate_function[c] = glb(fn_1[c], fn_2[c], ..., fn_n[c]), for fn_i in functions
+    candidate_function = [glb(i) for i in zip(*functions)]
+    # One sub-list of good pairs for each element in the lattice
+    good_pairs = [set() for _ in range(n)]
+    # All conflicting tuples form all elements in the lattice
+    conflict_tuples = set()
+    # All pairs of elements in the lattice that lost support
+    falling_pairs = set()
+    # Calculate all initial conflicts in the candidate solution
+    for pair in combinations(range(n), 2):
+        w = lub(pair)
+        u, v = pair
+        if check_fn_with_pair(candidate_function, pair):
+            good_pairs[w].add(pair)
+        elif lattice[lub((candidate_function[u], candidate_function[v]))][candidate_function[w]] != 1:
+            conflict_tuples.add((pair, w))
+        else:
+            falling_pairs.add(pair)
+
+    while len(conflict_tuples) != 0:
+        (u, v), w = conflict_tuples.pop()
+        candidate_update = lub((candidate_function[u], candidate_function[v]))
+        candidate_function[w] = candidate_update
+        falling_pairs.update(good_pairs[w])
+        good_pairs[w] = set([(u, v)])
+
+        while len(falling_pairs) != 0:
+            x, y = falling_pairs.pop()
+            z = lub((x, y))
+            
+            if candidate_function[x] != glb((candidate_function[x], candidate_function[z])):
+                falling_pairs.update(good_pairs[x])
+                good_pairs[x].clear()
+            
+            if candidate_function[y] != glb((candidate_function[y], candidate_function[z])):
+                falling_pairs.update(good_pairs[y])
+                good_pairs[y].clear()
+
+            candidate_function[x] = glb((candidate_function[x], candidate_function[z]))
+            candidate_function[y] = glb((candidate_function[y], candidate_function[z]))
+
+            if lub((candidate_function[x], candidate_function[y])) == candidate_function[z]:
+                good_pairs[z].add((x, y))
+            else:
+                conflict_tuples.add(((x, y), z))
+        # Check that all good_pairs remain good. Sanity Check. Performance penalty.
+        for sublist in good_pairs:
+            for pair in sublist:
+                if LUBs[candidate_function[pair[0]]][candidate_function[pair[1]]] != candidate_function[LUBs[pair[0]][pair[1]]]:
+                    conflict_tuples.add((pair, LUBs[pair[0]][pair[1]]))
+    return candidate_function
+
+def probed_delta_foo(lattice, functions):
+    """ Calculates Delta using Greatest Lower Bounds and then fixes the
+        resulting function until its a valid space-function.
+
+        This function makes implicit use of the globals `LUBs` and `GLBs`.
+
+        Alternate version of `delta_foo` with a sanity check that imposes
+        a performance penalty. Returns a tuple with the result and the number
+        of times the candidate delta function was updated, for testing.
+    """
+    # For testing
+    updates = 0
     n = len(lattice)
     # Here candidate_function[c] = glb(fn_1[c], fn_2[c], ..., fn_n[c]), for fn_i in functions
     candidate_function = [glb(i) for i in zip(*functions)]
@@ -557,8 +619,8 @@ def delta_foo_b(lattice, functions):
         (u, v), w = conflict_tuples.pop()
         candidate_update = lub((candidate_function[u], candidate_function[v]))
         if candidate_function[w] != candidate_update:
-            FUNCTION_UPDATES += 1
-            candidate_function[w] = candidate_update
+            updates += 1
+        candidate_function[w] = candidate_update
         falling_pairs.update(good_pairs[w])
         good_pairs[w] = set([(u, v)])
 
@@ -569,12 +631,12 @@ def delta_foo_b(lattice, functions):
             if candidate_function[x] != glb((candidate_function[x], candidate_function[z])):
                 falling_pairs.update(good_pairs[x])
                 good_pairs[x].clear()
-                FUNCTION_UPDATES += 1
+                updates += 1
             
             if candidate_function[y] != glb((candidate_function[y], candidate_function[z])):
                 falling_pairs.update(good_pairs[y])
                 good_pairs[y].clear()
-                FUNCTION_UPDATES += 1
+                updates += 1
 
             candidate_function[x] = glb((candidate_function[x], candidate_function[z]))
             candidate_function[y] = glb((candidate_function[y], candidate_function[z]))
@@ -588,8 +650,8 @@ def delta_foo_b(lattice, functions):
             for pair in sublist:
                 if LUBs[candidate_function[pair[0]]][candidate_function[pair[1]]] != candidate_function[LUBs[pair[0]][pair[1]]]:
                     conflict_tuples.add((pair, LUBs[pair[0]][pair[1]]))
-    # print("Candidate Function updates:", FUNCTION_UPDATES)
-    return candidate_function
+    # print("Candidate Function updates:", updates)
+    return (candidate_function, updates)
 
 def delta_n(lattice, space_functions, functions):
     """ Calculate Delta for a set of `functions` over a `lattice`
@@ -1318,6 +1380,7 @@ def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests 
         eprint(":", end='')
 
         fn_time, delta_foo_b_result = run_test_case(delta_foo_b, lattice_matrix, sample_functions)
+        # fn_time, delta_foo_b_result = (0.0, [0])
         delta_results[Delta.FOO_B].update_times(fn_time, n)
         if verbose:
             print("{}: {}".format(delta_results[Delta.FOO_B].name, repr(delta_foo_b_result)))
@@ -1335,6 +1398,7 @@ def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests 
         # eprint(":", end='')
 
         # fn_time, delta_ast_v2_result = run_test_case(delta_ast_v2, lattice_matrix, sample_functions)
+        # fn_time, delta_ast_v2_result = (0.0, [0])
         # delta_results[Delta.AST_V2].update_times(fn_time, n)
         # if verbose:
         #     print("{}: {}".format(delta_results[Delta.AST_V2].name, repr(delta_ast_v2_result)))
@@ -1343,6 +1407,7 @@ def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests 
         # eprint(":", end='')
 
         # fn_time, delta_ast_v3_result = run_test_case(delta_ast_v3, lattice_matrix, sample_functions)
+        # fn_time, delta_ast_v3_result = (0.0, [0])
         # delta_results[Delta.AST_V3].update_times(fn_time, n)
         # if verbose:
         #     print("{}: {}".format(delta_results[Delta.AST_V3].name, repr(delta_ast_v3_result)))
@@ -1351,6 +1416,7 @@ def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests 
         # eprint(":", end='')
 
         # fn_time, delta_ast_v4_result = run_test_case(delta_ast_v4, lattice_matrix, sample_functions)
+        # fn_time, delta_ast_v4_result = (0.0, [0])
         # delta_results[Delta.AST_V4].update_times(fn_time, n)
         # if verbose:
         #     print("{}: {}".format(delta_results[Delta.AST_V4].name, repr(delta_ast_v4_result)))
@@ -1442,13 +1508,10 @@ def run_powerset_space_function_pairs():
         This required the modification of delta_foo_b, adding a global counter
         and observing when the candidate_function updates. FUNCTION_UPDATES
     """
-    from lattice import process_file, Lattice, covers_from_lattice, powerset_lattice
+    from lattice import Lattice, covers_from_lattice, powerset_lattice
     # ID of the lattice
-    # key = 4698136515449058355
     key = "power_4"
     # Read the lattice to test from
-    # lattices = process_file("distributive_lattices.py")
-    # lattice = Lattice(lattices[key])
     lattice = Lattice(powerset_lattice(4))
     
     # Globals used implicitly
@@ -1471,10 +1534,10 @@ def run_powerset_space_function_pairs():
     print("* Using lattice `{}` ({} nodes)".format(key, len(lattice)))
     print("* Covers:", covers_from_lattice(lattice.lattice))
     for pair in combinations(space_functions, 2):
-        delta_foo_b(lattice.lattice, pair)
-        if FUNCTION_UPDATES >= max_updates:
+        _, updates = probed_delta_foo(lattice.lattice, pair)
+        if updates >= max_updates:
             results = pair
-            max_updates = FUNCTION_UPDATES
+            max_updates = updates
     print("__________Space Functions__________\n")
     for fn in results:
         print(fn)
@@ -1527,7 +1590,7 @@ def all_space_functions_diagram():
     lattice = Lattice(lattice_m(6))
     total = len(lattice.space_functions)
     for pos, sf in enumerate(lattice.space_functions):
-        file_name = "lattice_m4_sf_{}.gv".format(pos)
+        file_name = "lattice_m{}_sf_{}.gv".format(pos - 2, pos)
         fns_file_path = relative_path("results", "diagrams", file_name)
         # Check if the file already exists
         if os.path.isfile(fns_file_path):

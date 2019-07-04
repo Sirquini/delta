@@ -518,9 +518,6 @@ def delta_foo(lattice, functions):
                     conflicts.add(((x, y), z))
     return delta
 
-# Temporal global to count the number of updates done by delta_foo_b
-FUNCTION_UPDATES = 0 
-
 def delta_foo_b(lattice, functions):
     """ Calculates Delta using Greatest Lower Bounds and then fixes the
         resulting function until its a valid space-function.
@@ -1506,7 +1503,7 @@ def run_powerset_space_function_pairs():
         requires the maximum ammount of updates of the candidate_function.
 
         This required the modification of delta_foo_b, adding a global counter
-        and observing when the candidate_function updates. FUNCTION_UPDATES
+        and observing when the candidate_function updates.
     """
     from lattice import Lattice, covers_from_lattice, powerset_lattice
     # ID of the lattice
@@ -1573,8 +1570,8 @@ def test_space_functions():
             print("\x1b[32mvalid\x1b[0m", sf)
         else:
             print("\x1b[31mINVALID\x1b[0m", sf)
-    _, result = run_test_case(delta_foo_b, lattice.lattice, [decode_powerset_function(lattice, sf) for sf in encoded_space_functions])
-    print("Updates:", FUNCTION_UPDATES)
+    result, updates = probed_delta_foo(lattice.lattice, [decode_powerset_function(lattice, sf) for sf in encoded_space_functions])
+    print("Updates:", updates)
     print("Result:", result)
     print("Delta_0:", [glb(i) for i in zip(*[decode_powerset_function(lattice, sf) for sf in encoded_space_functions])])
 

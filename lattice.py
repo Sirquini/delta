@@ -626,7 +626,7 @@ def test_equality(expected, actual, name):
     if expected != actual:
         print("{} \x1b[31mFAILED\x1b[0m".format(message))
         print("Expected:", expected)
-        print("Actual:  ", actual)
+        print("  Actual:", actual)
     else:
         print("{} \x1b[32mok\x1b[0m".format(message))
 

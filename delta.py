@@ -8,8 +8,7 @@ from itertools import permutations
 from time import perf_counter
 
 def calculate_lubs(lattice):
-    """ Calculate the matrix of Lower Upper Bounds for the `lattice`.
-    """
+    """Calculates the matrix of Lower Upper Bounds for the `lattice`."""
     n = len(lattice)
     result = [[0 for i in range(n)] for j in range(n)]
     for i in range(n):
@@ -19,8 +18,7 @@ def calculate_lubs(lattice):
     return result
 
 def calculate_glbs(lattice):
-    """ Calculate the matrix of Greatest Lower Bounds for the `lattice`.
-    """
+    """Calculates the matrix of Greatest Lower Bounds for the `lattice`."""
     n = len(lattice)
     result = [[0 for i in range(n)] for j in range(n)]
     for i in range(n):
@@ -30,9 +28,7 @@ def calculate_glbs(lattice):
     return result
 
 def pair_lub(a, b, lattice):
-    """ Calculate the least upper bound of the pair (`a`, `b`) for the given
-        `lattice`.
-    """
+    """Calculates the least upper bound of the pair (`a`, `b`)."""
     if lattice[a][b] == 1: return a
     elif lattice[b][a] == 1: return b
     else:
@@ -46,9 +42,7 @@ def pair_lub(a, b, lattice):
         return least
 
 def pair_glb(a, b, lattice):
-    """ Calculate the greatest lower bound of the pair (`a`, `b`) for the given
-        `lattice`.
-    """
+    """Calculates the greatest lower bound of the pair (`a`, `b`)."""
     if lattice[a][b] == 1: return b
     elif lattice[b][a] == 1: return a
     else:
@@ -62,9 +56,9 @@ def pair_glb(a, b, lattice):
         return greatest
 
 def lub(iterable):
-    """ Least Upper Bound of `iterable`.
+    """Least Upper Bound of `iterable`.
 
-        Using global variable `LUBs`
+    Using global variable `LUBs`
     """
     r = 0
     for i in iterable:
@@ -72,9 +66,9 @@ def lub(iterable):
     return r
 
 def glb(iterable):
-    """ Greatest Lower Bound of `iterable`.
+    """Greatest Lower Bound of `iterable`.
 
-        Using global variable `GLBs`
+    Using global variable `GLBs`
     """
     r = len(GLBs) - 1
     for i in iterable:
@@ -82,42 +76,43 @@ def glb(iterable):
     return r
 
 def calculate_implications(lattice):
-    """ Calculate the matrix of implications for the `lattice`.
-    """
+    """Calculates the matrix of implications for the `lattice`."""
     n = len(lattice)
     return [[pair_implication(i, j, lattice) for j in range(n)] for i in range(n)]
 
 def pair_implication(a, b, lattice):
-    """ Calculate the greatest lower bound of the pair (`a`, `b`) for the given
-        `lattice`.
+    """Calculates the greatest lower bound of the pair (`a`, `b`).
 
-        Implictly using the global variables `LUBs` and `GLBs`
+    Implictly using the global variables `LUBs` and `GLBs`
     """
     # a -> b ::= glb_{i <= b} { i | a lub i >= b }
     return glb((i for i in range(len(lattice)) if lattice[b][i] == 1 and lattice[lub((a, i))][b] == 1))
 
 def imply(a, b):
-    """ Returns a imply b.
+    """Returns `a` imply `b`.
 
-        Using global variable `IMPLs`
+    Using global variable `IMPLs`
     """
     return IMPLs[a][b]
 
 def generate_functions(n):
-    """ Generate a list of space functions, based on a lattice of `n` elements.
+    """Generates a list of space functions, based on a lattice of `n` elements.
+    
+    Implictly using the global variables `LUBs` and `GLBs`
     """
     test_pairs = tuple(combinations(range(n), 2))
     return [(0,) + fn for fn in product(range(n), repeat=n-1) if is_distributive(fn, test_pairs)]
 
 def is_distributive(fn, test_pairs):
-    """ Checks if a given function `fn` is distributive.
+    """Checks if a given function `fn` is distributive.
+
+    Implictly using the global variables `LUBs` and `GLBs`
     """
     fn = (0,) + fn
     return all(fn[lub((t0, t1))] == lub((fn[t0], fn[t1])) for t0, t1 in test_pairs)
 
 def is_lattice(lattice):
-    """ Returns True if `lattice` is a valid lattice.
-    """
+    """Returns True if `lattice` is a valid lattice."""
     N = len(lattice)
 	# List of pairs, leaving them as an iterator allows us
     # to short-circuit and not generate all the pairs if
@@ -126,14 +121,14 @@ def is_lattice(lattice):
     return all(lub(pair) != -1 for pair in lt)
 
 def leq_fn(lattice, fn1, fn2):
-    """ Returns True if the function `fn1` <= `fn2` for a given `lattice`.
-        Otherwise False.
+    """Returns True if the function `fn1` <= `fn2` for a given `lattice`.
+    Otherwise False.
     """
     return all(lattice[fn2[i]][fn1[i]] == 1 for i in range(len(lattice)))
 
 def max_fn(lattice, functions):
-    """ Returns the maximun function from a collection of `functions` for a
-        given `lattice`.
+    """Returns the maximun function from a collection of `functions` for a
+    given `lattice`.
     """
     greatest = None
     for fn in functions:
@@ -145,26 +140,28 @@ def max_fn(lattice, functions):
 
 
 def apply_fns(functions, elements):
-    """ Returns a list of mapped elements applying the correponding function in
-        `functions` to each element in `elements`.
+    """Returns a list of mapped elements applying the correponding function in
+    `functions` to each element in `elements`.
     """
     return [functions[i][elem] for i, elem in enumerate(elements)]
 
 def atoms(lattice):
-    """ Returns a list of all the atoms in `lattice`.
+    """Returns a list of all the atoms in `lattice`.
         
-        + `y` is an atom if `0` is covered by `y`
-        + `x` is covered by `y` if `x < y` and `x <= z < y` implies `z = x`
+    + `y` is an atom if `0` is covered by `y`
+    + `x` is covered by `y` if `x < y` and `x <= z < y` implies `z = x`
     """
     n = len(lattice)
     return [i for i in range(n) if all(i != 0 and (i == j or j == 0 or lattice[i][j] == 0) for j in range(n))]
 
 def join_irreducible_elements(lattice):
-    """ Returns a list of all the join-irreducible elements in the lattice.
+    """Returns a list of all the join-irreducible elements in the `lattice`.
 
-        `x` is join-irreducible (or lub-irreducible) if:
-        + `x != 0`
-        + `a < x` and `b < x` imply `a lub b < x` for all `a` and `b` 
+    `x` is join-irreducible (or lub-irreducible) if:
+    + `x != 0`
+    + `a < x` and `b < x` imply `a lub b < x` for all `a` and `b`
+
+    Using the global variable `LUBs`
     """
     n = len(lattice)
     test_pairs = tuple(combinations(range(n), 2))
@@ -172,10 +169,13 @@ def join_irreducible_elements(lattice):
 
 
 def random_space_function(lattice):
-    """ Generates a random space function for the given `lattice`.
+    """Generates a random space function for the given `lattice`.
 
-        This mapping function is only guaranteed to be a valid space function
-        if the `lattice` is isomorphic to the powerset.
+    This mapping function is only guaranteed to be a valid space function
+    if the `lattice` is isomorphic to a powerset lattice.
+
+    Args:
+        lattice: A Lattice instance.
     """
     n = len(lattice)
     all_atoms = lattice.atoms()
@@ -192,6 +192,15 @@ def random_space_function(lattice):
     return result
 
 def decode_powerset_function(lattice, encoded_fn):
+    """Expands an atoms-mapping to a space function.
+
+    The atoms in `encoded_fn` are read in the same order as calling 
+    `lattice.atoms()`.
+
+    Args:
+        lattice: A Lattice instance.
+        encoded_fn: A list mapping atoms.
+    """
     n = len(lattice)
     all_atoms = lattice.atoms()
     # Map 0
@@ -207,23 +216,29 @@ def decode_powerset_function(lattice, encoded_fn):
     return result
 
 def i_projection(lattice, function, c):
-    """ Return the i-projection of c for the `lattice`.
+    """Returns the i-projection of `c` for the `lattice`.
 
-        Defined as `lub({e | c >= function[e] and e in lattice})`
+    Defined as `lub({e | c >= function[e] and e in lattice})`
+
+    Implicictly using the global variable `LUBs`
     """
     return lub(e for e in range(len(lattice)) if lattice[c][function[e]] == 1)
 
 def i_join_projection(lattice, functions, c):
-    """ Returns the I-join projection of `c` for a group of `functions` over a
-        `lattice`.
+    """Returns the I-join projection of `c` for a group of `functions` over a
+    `lattice`.
 
-        Defined as `lub({i_projection(fn, c) | fn in functions})`
+    Defined as `lub({i_projection(fn, c) | fn in functions})`
+
+    Implictly using the global variable `LUBs`
     """
     return lub(i_projection(lattice, fn, c) for fn in functions)
 
 def space_projection(lattice, functions):
-    """ Calculates the Space Projection, or I-join projection, for all elements
-        of `lattice` with `functions`.
+    """Calculates the Space Projection, or I-join projection, for all elements
+    of `lattice` with `functions`.
+
+    Implictly using the global variable `LUBs`
     """
     return [i_join_projection(lattice, functions, c) for c in range(len(lattice))]
 
@@ -232,7 +247,9 @@ def space_projection(lattice, functions):
 # ######################################
 
 def delta_ast(lattice, functions):
-    """ Calculate Delta* for a set of `functions` over a `lattice`.
+    """Calculates Delta* for a set of `functions` over a `lattice`.
+
+    Implictly using the global variables `LUBs` and `GLBs`
     """
     n = len(lattice)
     fn_number = len(functions)
@@ -245,11 +262,11 @@ def delta_ast(lattice, functions):
     return delta
 
 def delta_ast_imply(lattice, functions):
-    """ Calculate Delta* for a set of `functions` over a `lattice`.
+    """Calculate Delta* for a set of `functions` over a `lattice`.
         
-        Only implemented with for 2 functions or less.
+    Only implemented with for 2 functions or less.
 
-        Using global variable `IMPLs`
+    Implictly using the global variables `LUBs`, `GLBs`, and `IMPLs`
     """
     n = len(lattice)
     # TODO: Define for cases with more than two functions
@@ -265,10 +282,12 @@ def delta_ast_imply(lattice, functions):
         return delta
 
 def partition_helper_v2(lattice, functions, first, last, c):
-    """ Helper function for delta*
+    """Helper function for delta*
         
-        - No look-up table.
-        - No imply
+    - No look-up table.
+    - No imply
+
+    Implictly using the global variables `LUBs` and `GLBs`
     """
     fn_num = last - first
     if fn_num == 1:
@@ -285,21 +304,25 @@ def partition_helper_v2(lattice, functions, first, last, c):
         return result
 
 def delta_ast_v2(lattice, functions):
-    """ Calculate Delta* for a set of `functions` over a `lattice`
-        partitioning the set of functions.
+    """Calculates Delta* for a set of `functions` over a `lattice`
+    partitioning the set of functions.
 
-        Similar to Delta* with partitioning but without using imply or a
-        look-up table.
+    Similar to Delta* with partitioning but without using imply or a look-up
+    table.
+
+    Implictly using the global variables `LUBs` and `GLBs`
     """
     n = len(functions)
     return [partition_helper_v2(lattice, functions, 0, n, c) for c in range(len(lattice))]
 
 def partition_helper_v3(lattice, functions, first, last, c):
-    """ Helper function for delta*
+    """Helper function for delta*
         
-        - No look-up table.
-        - With imply
-        - Checks all elements, not only elements <= c
+    - No look-up table.
+    - With imply
+    - Checks all elements, not only elements <= c
+
+    Implictly using the global variables `LUBs`, `GLBs`, and `IMPLs`
     """
     fn_num = last - first
     if fn_num == 1:
@@ -311,20 +334,24 @@ def partition_helper_v3(lattice, functions, first, last, c):
         return result
 
 def delta_ast_v3(lattice, functions):
-    """ Calculate Delta* for a set of `functions` over a `lattice`
-        partitioning the set of functions.
+    """Calculates Delta* for a set of `functions` over a `lattice`
+    partitioning the set of functions.
 
-        Implementation of Delta* without a look-up table.
+    Implementation of Delta* without a look-up table.
+
+    Implictly using the global variables `LUBs`, `GLBs`, and `IMPLs`
     """
     n = len(functions)
     return [partition_helper_v3(lattice, functions, 0, n, c) for c in range(len(lattice))]
 
 def partition_helper_v4(lattice, functions, first, last, c):
-    """ Helper function for delta*
+    """Helper function for delta*
         
-        - No look-up table.
-        - With imply
-        - Only checks elements <= c
+    - No look-up table.
+    - With imply
+    - Only checks elements <= c
+
+    Implictly using the global variables `LUBs`, `GLBs`, and `IMPLs`
     """
     if c == 0:
         return 0
@@ -338,10 +365,12 @@ def partition_helper_v4(lattice, functions, first, last, c):
         return result
 
 def delta_ast_v4(lattice, functions):
-    """ Calculate Delta* for a set of `functions` over a `lattice`
-        partitioning the set of functions.
+    """Calculates Delta* for a set of `functions` over a `lattice`
+    partitioning the set of functions.
 
-        Latest implementation of Delta* without a look-up table.
+    Latest implementation of Delta* without a look-up table.
+
+    Implictly using the global variables `LUBs`, `GLBs`, and `IMPLs`
     """
     n = len(functions)
     return [partition_helper_v4(lattice, functions, 0, n, c) for c in range(len(lattice))]
@@ -364,10 +393,12 @@ def partition_helper(lattice, functions, first, last, c):
         return result
 
 def delta_ast_partition(lattice, functions):
-    """ Calculate Delta* for a set of `functions` over a `lattice`
-        partitioning the set of functions.
+    """Calculates Delta* for a set of `functions` over a `lattice`
+    partitioning the set of functions.
 
-        Latest implementation of Delta* with a look-up table.
+    Latest implementation of Delta* with a look-up table.
+
+    Implictly using the global variables `LUBs`, `GLBs`, and `IMPLs`
     """
     n = len(functions)
     global HELPER_CACHE
@@ -375,12 +406,14 @@ def delta_ast_partition(lattice, functions):
     return [partition_helper(lattice, functions, 0, n, c) for c in range(len(lattice))]
 
 def overlapping_partition_helper(lattice, functions, first, last, c):
-    """ Helper function for delta*
+    """Helper function for delta*
         
-        - With look-up table.
-        - With imply
-        - Only checks elements <= c
-        - The partitions overlap
+    - With look-up table.
+    - With imply
+    - Only checks elements <= c
+    - The partitions overlap
+
+    Implictly using the global variables `LUBs`, `GLBs`, and `IMPLs`
     """
     cached_result = HELPER_CACHE[c][first][last-1]
     if cached_result is not None:
@@ -402,11 +435,13 @@ def overlapping_partition_helper(lattice, functions, first, last, c):
         return result
 
 def delta_ast_overlapping_partition(lattice, functions):
-    """ Calculate Delta* for a set of `functions` over a `lattice`
-        partitioning the set of functions.
+    """Calculates Delta* for a set of `functions` over a `lattice`
+    partitioning the set of functions.
 
-        Using overlaping partitions, see overlapping_partition_helper, and
-        a look-up table.
+    Using overlaping partitions, see `overlapping_partition_helper`, and a
+    look-up table.
+
+    Implictly using the global variables `LUBs`, `GLBs`, and `IMPLs`
     """
     n = len(functions)
     global HELPER_CACHE
@@ -418,10 +453,10 @@ def check_fn_with_pair(fn, pair):
     return LUBs[fn[a]][fn[b]] == fn[LUBs[a][b]]
 
 def to_sets(lattice, delta, u, v, good_pairs, conflicts, cross_references, falling_pairs):
-    """ Sends pair (u, v) to the set of conflicts (C),  falling_pairs (F) or
-        good_pairs (S) according to the property that holds for the pair.
+    """Sends pair (u, v) to the set of conflicts (C),  falling_pairs (F) or
+    good_pairs (S) according to the property that holds for the pair.
 
-        This functio uses the global `LUBs`.
+    Uing the global variable `LUBs`
     """
     w = LUBs[u][v]
     if lattice[LUBs[delta[u]][delta[v]]][delta[w]] != 1:
@@ -434,11 +469,11 @@ def to_sets(lattice, delta, u, v, good_pairs, conflicts, cross_references, falli
         falling_pairs.add((u, v))
 
 def check_supports(lattice, delta, u, good_pairs, conflicts, cross_references, falling_pairs):
-    """ Identifies all pairs of the form (u, x) that lost their support because
-         of a change in delta(u). It adds (u, x) to the appropiate set of
-         conflicts (C), or falling_pairs (F).
+    """Identifies all pairs of the form (u, x) that lost their support because
+    of a change in delta(u). It adds (u, x) to the appropiate set of
+    conflicts (C), or falling_pairs (F).
 
-        This functio uses the global `LUBs`.
+    Uing the global variable `LUBs`
     """
     while len(cross_references[u]) != 0:
         v = cross_references[u].pop()
@@ -450,12 +485,12 @@ def check_supports(lattice, delta, u, good_pairs, conflicts, cross_references, f
             to_sets(lattice, delta, u, v, good_pairs, conflicts, cross_references, falling_pairs)
 
 def delta_foo(lattice, functions):
-    """ Calculates Delta using Greatest Lower Bounds and then fixes the
-        resulting function until its a valid space-function.
+    """Calculates Delta using Greatest Lower Bounds and then fixes the
+    resulting function until its a valid space-function.
 
-        This version uses supporting structure to speed-up the process. 
+    This version uses supporting structure to speed-up the process. 
 
-        This function makes implicit use of the globals `LUBs` and `GLBs`.
+    Implictly using the global variables `LUBs` and `GLBs`
     """
     n = len(lattice)
     # Here delta[c] = glb(fn_1[c], fn_2[c], ..., fn_n[c]), for fn_i in functions
@@ -519,13 +554,13 @@ def delta_foo(lattice, functions):
     return delta
 
 def delta_foo_b(lattice, functions):
-    """ Calculates Delta using Greatest Lower Bounds and then fixes the
-        resulting function until its a valid space-function.
+    """Calculates Delta using Greatest Lower Bounds and then fixes the
+    resulting function until its a valid space-function.
 
-        This function makes implicit use of the globals `LUBs` and `GLBs`.
+    Implictly using the global variables `LUBs` and `GLBs`.
 
-        Alternate version of `delta_foo` used for A/B Testing, with a sanity
-        check that imposes a performance penalty.
+    Alternate version of `delta_foo` used for A/B Testing, with a sanity
+    check that imposes a performance penalty.
     """
     n = len(lattice)
     # Here candidate_function[c] = glb(fn_1[c], fn_2[c], ..., fn_n[c]), for fn_i in functions
@@ -581,14 +616,14 @@ def delta_foo_b(lattice, functions):
     return candidate_function
 
 def probed_delta_foo(lattice, functions):
-    """ Calculates Delta using Greatest Lower Bounds and then fixes the
-        resulting function until its a valid space-function.
+    """Calculates Delta using Greatest Lower Bounds and then fixes the
+    resulting function until its a valid space-function.
 
-        This function makes implicit use of the globals `LUBs` and `GLBs`.
+    This function makes implicit use of the globals `LUBs` and `GLBs`.
 
-        Alternate version of `delta_foo` with a sanity check that imposes
-        a performance penalty. Returns a tuple with the result and the number
-        of times the candidate delta function was updated, for testing.
+    Alternate version of `delta_foo` with a sanity check that imposes
+    a performance penalty. Returns a tuple with the result and the number
+    of times the candidate delta function was updated, for testing.
     """
     # For testing
     updates = 0
@@ -664,7 +699,7 @@ def delta_n(lattice, space_functions, functions):
 # ######################################
 
 def lattice_m(n):
-    """ Generate an M lattice with `n` elements. """
+    """Generates an M lattice with `n` elements."""
     l = [[0 for i in range(n)] for j in range(n)]
     for i in range(n):
         l[i][0] = 1
@@ -674,7 +709,7 @@ def lattice_m(n):
     return l
 
 def lattice_n5():
-    """ Generate the lattice n5. """
+    """Generates the lattice n_5."""
     n = 5
     l = [[0 for i in range(n)] for j in range(n)]
     for i in range(n):
@@ -686,11 +721,11 @@ def lattice_n5():
     return l
 
 def lattice_kite():
-    """ Generate a lattice with 4 elements. """
+    """Generates a lattice with 4 elements."""
     return lattice_m(4)
 
 def lattice_square():
-    """ Generate a square lattice with 9 elements. """
+    """Generates a square lattice with 9 elements."""
     n = 9
     l = [[0 for i in range(n)] for j in range(n)]
     for i in range(n):
@@ -713,7 +748,7 @@ def lattice_square():
     return l
 
 def lattice_power_3():
-    """ Generate a power of 3 lattice with 8 elements. """
+    """Generates a powerset-of-3 lattice with 8 elements."""
     n = 8
     l = [[0 for i in range(n)] for i in range(n)]
     for i in range(n):
@@ -736,11 +771,11 @@ def lattice_power_3():
 # ######################################
 
 def print_fn_table_check(fn, verbose=False):
-    """ Prints a table with the values for each pair a b in a lattice with `n`
-        nodes showing `a`, `b`, `lub(fn[a], fn[b])`, `fn[lub(a, b)]` for
-        testing porpuses.
-        
-        This function makes implicit use of the global `LUBs`.
+    """Prints a table with the values for each pair a b in a lattice with `n`
+    nodes showing `a`, `b`, `lub(fn[a], fn[b])`, `fn[lub(a, b)]` for
+    testing porpuses.
+    
+    This function makes implicit use of the global `LUBs`.
     """
     n = len(LUBs)
 
@@ -774,21 +809,21 @@ def print_fn_table_check(fn, verbose=False):
 # ######################################
 
 def relative_path(path, *paths):
-    """ Returns the absolute path for a file relative to the script.
-    """
+    """Returns the absolute path of a file relative to the script."""
     dirname = os.path.dirname(__file__)
     return os.path.join(dirname, path, *paths)
 
 def eprint(*args, **kwargs):
-    """ Similar to print but uses sys.stderr instead of sys.stdin
+    """Similar to `print` but uses `sys.stderr` instead of `sys.stdin`
+    
+    Also flushes the stream.
     """
     print(*args, file=sys.stderr, flush=True, **kwargs)
 
 # ######################################
 
 class TestResults:
-    """ Utility class to group and show algorithms' results.
-    """
+    """Utility class to group and show algorithms' results."""
     
     def __init__(self, name, skip_times=False):
         # The name of the algorith tested
@@ -802,25 +837,24 @@ class TestResults:
         self.skip_times = skip_times
     
     def update_times(self, new_time, max_iterations):
-        """ Updates the internal time counter with the `new_time`. Keeping
-            track of the average (over `max_iterations`), minimum, and maximum
-            time of the TestResult associated algorithm.
+        """Updates the internal time counter with the `new_time`. Keeping
+        track of the average (over `max_iterations`), minimum, and maximum
+        time of the TestResult associated algorithm.
         """
         self.avg_time += new_time / max_iterations
         self.min_time = min(self.min_time, new_time)
         self.max_time = max(self.max_time, new_time)
     
     def print_times(self):
-        """ Prints the current average, minimum and maximum time.
-        """
+        """Prints the current average, minimum and maximum time."""
         print("\nTimes for", self.name)
         print("-- Average:", self.avg_time)
         print("-- Min:    ", self.min_time)
         print("-- Max:    ", self.max_time)
     
     def print_status(self):
-        """ Prints if the TestResults has failed any of the tests
-            or passed all tests.
+        """Prints if the TestResults has failed any of the tests
+        or passed all of them.
         """
         if len(self.errors) == 0:
             print("[i] All", self.name, "\x1b[32mpassed\x1b[0m")
@@ -828,9 +862,11 @@ class TestResults:
             print("[w] Some", self.name, "\x1b[31mFAILED\x1b[0m")
     
     def print_errors(self):
-        """ If the TestResult presents any failed test cases, then it prints
-            each failed test case, showing the space functions used, the
-            expected (correct) and the actual (reported) result.
+        """If the TestResult presents any failed test cases, then it prints
+        each failed test case.
+        
+        For each failed test case shows the space functions used, the
+        expected (correct), and the actual (reported) result.
         """
         errors = len(self.errors)
         if errors > 0:
@@ -856,9 +892,10 @@ class Delta(Enum):
     OTHER = 10
 
 def run_test_case(fn, lattice, test_functions):
-    """ Runs `fn` with a `lattice` and an iterable of `test_functions`.
+    """Runs `fn` with a `lattice` and an iterable of `test_functions`.
         
-        Returns the execution_time and the result.
+    Returns:
+        A tuple with the execution_time and the actual result.
     """
     fn_time = perf_counter()
     result = fn(lattice, test_functions)
@@ -866,37 +903,37 @@ def run_test_case(fn, lattice, test_functions):
     return fn_time, result
 
 def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functions = 2, fns_file = None, save_functions = False):
-    """ Run all the delta algorithms against a `lattice` and `test_functions`,
-        either random or explicit, and present the results.
+    """Runs all the delta algorithms against a `lattice` and `test_functions`,
+        either random or explicit, and presents the results.
 
-        INPUTS:
-        - lattice:
+    Args:
+        lattice:
             Matrix representing The lattice to test against.
-        - verbose:
+        verbose:
             - If True, show each test case and the individual results,
             and a summary of failing test cases
             - If False (default), only show failing test cases (faster)
-        - test_functions:
+        test_functions:
             The list of space-functions to test against. By default, if no 
             `test_functions` are provided, generates random test_functions.
-        - n_tests:
+        n_tests:
             If `test_functions` is None, indicates the number of test to run
             with `n_functions` random test functions.
-        - n_functions:
+        n_functions:
             If `test_funtions` is None, indicates how many random test
             functions to use per test-case.
-        - fns_file:
+        fns_file:
             String with the file path to read and/or write calculated
             space-functions for `lattice`. 
-        - save_functions:
+        save_functions:
             - If True, write the generated space-function to `fns_file` except
             when the space-functions were read from the same file.
             - If False (default), do not write the generated space-functions
             anywhere.
         
-        OUPUTS:
-            Returns a dictionary with the acumulated results, including timings
-            and failures (if any).
+    Returns:
+        A dictionary with the acumulated results, including timings and
+        failures (if any).
     """
     # Used to calculate elapsed time
     start_time = perf_counter()
@@ -1059,9 +1096,7 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
     return {"result": delta_results.values(), "total": elapsed_time, "sf": len(space_functions), "sf_gen_time": func_gen_time, "preproc": preproc_time}
 
 def write_test_results_csv(name, results):
-    """ Write the test results in a file for later usage
-        in a CSV file.
-    """
+    """Writes the test results in a CSV file."""
     import csv
     # Collect headers
     if results:
@@ -1116,8 +1151,7 @@ def run_square():
     run(lattice_square(), n_tests=1000, n_functions=4, fns_file=relative_path("generated","sf_square.in"))
 
 def run_failling_foo():
-    """ Test-cases in which delta_foo used to fail
-    """
+    """Test-cases in which delta_foo used to fail."""
     from lattice import process_file
     
     lattices = process_file("distributive_lattices.py")
@@ -1158,8 +1192,7 @@ def run_failling_foo():
     run(lattices[8013726431884705816], test_functions=test_functions, fns_file=relative_path("generated", "sf_8013726431884705816.in"))
 
 def run_random():
-    """ Equivalent to calling `run()` with a random lattice as its parameter.
-    """
+    """Equivalent to calling `run()` with a random lattice as its parameter."""
     from lattice import random_lattice, lattice_from_covers
     covers = random_lattice(8, 0.95)
     print("* Using lattice:", covers)
@@ -1245,7 +1278,7 @@ def run_lattice_implementations():
     print("\nElapsed time:", elapsed_time)
 
 def run_random_space_functions():
-    """ Used for testing the random generation of space functions for a lattice.
+    """Used for testing the random generation of space functions for a lattice.
     """
     from lattice import Lattice, lattice_from_covers
 
@@ -1275,31 +1308,31 @@ def run_random_space_functions():
         print("All the resulting functions are \x1b[32mvalid\x1b[0m")
 
 def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests = 10, n_functions = 2):
-    """ Run all the delta algorithms against a powerset lattice and
-        `test_functions`, either random or explicit, similar to the run command,
-        and present the results.
+    """Runs all the delta algorithms against a powerset lattice and
+    `test_functions`, either random or explicit, similar to the run command,
+    and present the results.
 
-        INPUTS:
-        - exponent:
+    Args:
+        exponent:
             The number of base elements for the powerset, the total number of
             elements in the lattice is 2 ** n.
-        - verbose:
+        verbose:
             - If `True`, show each test case, the individual results, and a
             summary of failing test cases.
             - If `False` (default), only show failing test cases.
-        - test_functions:
+        test_functions:
             The list of space-functions to test against. By default, if no 
             `test_functions` are provided, generates random test_functions.
-        - n_tests:
+        n_tests:
             If `test_functions` is None, indicates the number of test to run
             with `n_functions` random test functions.
-        - n_functions:
+        n_functions:
             If `test_funtions` is None, indicates how many random test
             functions to use per test-case.
         
-        OUPUTS:
-            Returns a dictionary with the acumulated results, including timings
-            and failures (if any).
+    Returns:
+        A dictionary with the acumulated results, including timings and
+        failures (if any).
     """
     from lattice import Lattice, powerset_lattice
     # Used to calculate the elapsed time
@@ -1448,8 +1481,8 @@ def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests 
     return {"result": delta_results.values(), "total": elapsed_time, "sf": 0, "sf_gen_time": gen_time, "preproc": preproc_time}
 
 def run_full_powerset_tests():
-    """ Equivalent to `run_full_tests()` but using `run_powerset()` instead of
-        `run()`, and is used to time algorithms against powerset lattices.
+    """Equivalent to `run_full_tests()` but using `run_powerset()` instead of
+    `run()`, and is used to time algorithms against powerset lattices.
     """
     from datetime import datetime
     results = []
@@ -1468,11 +1501,11 @@ def run_full_powerset_tests():
     write_test_results_csv("results-{}.csv".format(start_time), results)
 
 def run_space_projection():
-    """ Usecase for the space projection functions.
+    """Usecase for the space projection functions.
 
-        + `i_projection()`
-        + `i_join_projection()`
-        + `space_projection()`
+    + `i_projection()`
+    + `i_join_projection()`
+    + `space_projection()`
     """
     from lattice import Lattice, lattice_from_covers
     # 0 = bottom
@@ -1499,11 +1532,8 @@ def run_space_projection():
     print("Space Projection:", space_projection(lattice.lattice, space_functions))
 
 def run_powerset_space_function_pairs():
-    """ Find the pair of space functions such that the execution of delta_foo
-        requires the maximum ammount of updates of the candidate_function.
-
-        This required the modification of delta_foo_b, adding a global counter
-        and observing when the candidate_function updates.
+    """Finds the pair of space functions such that the execution of delta_foo
+    requires the maximum ammount of updates to the candidate_function.
     """
     from lattice import Lattice, covers_from_lattice, powerset_lattice
     # ID of the lattice

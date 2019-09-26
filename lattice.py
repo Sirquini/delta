@@ -9,8 +9,7 @@ from graphviz import Digraph
 # ######################################
 
 def get_relative_path(file_path):
-    """ Returns the absolute path for a file relative to the script
-    """
+    """Returns the absolute path of a file relative to the script."""
     dirname = os.path.dirname(__file__)
     return os.path.join(dirname, file_path)
 
@@ -22,11 +21,11 @@ def get_relative_path(file_path):
 
 class Lattice:
     def __init__(self, implies_matrix):
-        """ Create a lattice from a matrix of implications,
-            where implies_matrix[a][b] == 1, means that a >= b.
+        """Creates a lattice from a matrix of implications,
+        where implies_matrix[a][b] == 1, means that a >= b.
 
-            Also calculates the corresponding matrix of
-            least upper bounds and greatest lower bounds.
+        Also calculates the corresponding matrix of
+        least upper bounds and greatest lower bounds.
         """
         self.lattice = implies_matrix
         self.lubs = calculate_lubs(implies_matrix)
@@ -36,13 +35,11 @@ class Lattice:
         self._impls = None
 
     def __len__(self):
-        """ Returns the number of nodes in the lattice.
-        """
+        """Returns the number of nodes in the lattice."""
         return len(self.lattice)
 
     def is_lattice(self):
-        """ Returns True if the lattice is valid.
-        """
+        """Returns True if the lattice is valid."""
         N = len(self)
         # List of pairs, leaving them as an iterator allows us
         # to short-circuit and not generate all the pairs if
@@ -51,46 +48,42 @@ class Lattice:
         return all(self.lubs[a][b] != -1 for (a, b) in lt)
     
     def is_fn_distributive(self, fn, test_pairs):
-        """ Checks if a given function `fn` is distributive.
-        """
+        """Checks if a given function `fn` is distributive."""
         return all(fn[self.lubs[t0][t1]] == self.lubs[fn[t0]][fn[t1]] for t0, t1 in test_pairs)
 
     def lub(self, iterable):
-        """ Least Upper Bound of `iterable`.
-        """
+        """Least Upper Bound of `iterable`."""
         r = 0
         for i in iterable:
             r = self.lubs[r][i]
         return r
 
     def glb(self, iterable):
-        """ Greatest Lower Bound of `iterable`.
-        """
+        """Greatest Lower Bound of `iterable`."""
         r = len(self) - 1
         for i in iterable:
             r = self.glbs[r][i]
         return r
 
     def imply(self, a, b):
-        """ Returns a imply b.
-        """
+        """Returns `a` imply `b`."""
         return self.impls[a][b]
 
     def atoms(self):
-        """ Returns a list of all the atoms.
+        """Returns a list of all the atoms.
             
-            + `y` is an atom if `0` is covered by `y`
-            + `x` is covered by `y` if `x < y` and `x <= z < y` implies `z = x`
+        + `y` is an atom if `0` is covered by `y`
+        + `x` is covered by `y` if `x < y` and `x <= z < y` implies `z = x`
         """
         n = len(self)
         return [i for i in range(n) if all(i != 0 and (i == j or j == 0 or self.lattice[i][j] == 0) for j in range(n))]
 
     def join_irreducible_elements(self):
-        """ Returns a list of all the join-irreducible elements in the lattice.
+        """Returns a list of all the join-irreducible elements in the lattice.
 
-            `x` is join-irreducible (or lub-irreducible) if:
-            + `x != 0`
-            + `a < x` and `b < x` imply `a lub b < x` for all `a` and `b` 
+        `x` is join-irreducible (or lub-irreducible) if:
+        + `x != 0`
+        + `a < x` and `b < x` imply `a lub b < x` for all `a` and `b` 
         """
         n = len(self)
         test_pairs = tuple(combinations(range(n), 2))
@@ -98,10 +91,10 @@ class Lattice:
 
     @property
     def space_functions(self):
-        """ Return the list of space functions, based on the lattice.
+        """Returns the list of space functions valid for the lattice.
 
-            The actual `space_functions` are only generated once, feel free
-            to call this method multiple times.
+        The actual `space_functions` are only generated once, feel free
+        to call this method multiple times.
         """
         if self._space_functions is None:
            self._space_functions = self._generate_space_functions()
@@ -109,18 +102,18 @@ class Lattice:
 
     @property
     def impls(self):
-        """ Return the matrix of implications, based on the lattice.
+        """Returns the matrix of Heyting implications valid for the lattice.
 
-            The actual `implys` are only generated once, feel free
-            to call this method multiple times.
+        The actual `impls` are only generated once, feel free to call this
+        method multiple times.
         """
         if self._impls is None:
            self._impls = self._calculate_implications()
         return self._impls
 
     def diagram(self, space_function=None):
-        """ Returns the graphviz Digraph representation of the lattice for
-            further manipulation or DOT language representation.
+        """Returns the graphviz Digraph representation of the lattice for
+        further manipulation, or for DOT language representation.
         """
         graph = Digraph("Lattice",edge_attr={"arrowhead": "none"})
         for i in range(len(self)):
@@ -135,22 +128,18 @@ class Lattice:
         return graph
 
     def _generate_space_functions(self):
-        """ Generate a list of space functions, based on the lattice.
-        """
+        """Generates a list of space functions, based on the lattice."""
         N = len(self)
         test_pairs = tuple(combinations(range(N), 2))
         return [(0,) + fn for fn in product(range(N), repeat=N-1) if self.is_fn_distributive((0,) + fn, test_pairs)]
     
     def _calculate_implications(self):
-        """ Calculate the matrix of implications for the lattice.
-        """
+        """Calculates the matrix of implications for the lattice."""
         N = len(self)
         return [[self._pair_implication(i, j) for j in range(N)] for i in range(N)]
     
     def _pair_implication(self, a, b):
-        """ Calculate the greatest lower bound of the pair (`a`, `b`)
-            in the lattice
-        """
+        """Calculates the Heyting implication of the pair (`a`, `b`)."""
         # a -> b ::= glb_{i <= b} { i | a lub i >= b }
         return self.glb((i for i in range(len(self)) if self.lattice[b][i] == 1 and self.lattice[self.lubs[a][i]][b] == 1))
 
@@ -176,28 +165,28 @@ def partition_helper(lattice, functions, first, last, c, helper_cache):
         return result
 
 def delta_ast_partition(lattice, functions):
-    """ Calculate Delta* for a set of `functions` over a `lattice`
-        partitioning the set of functions and using a look-up table.
+    """Calculates Delta* for a set of `functions` over a `lattice`
+    partitioning the set of functions and using a look-up table.
     """
     n = len(functions)
     helper_cache = [[[None] * n for _ in range(n)] for _ in range(len(lattice))]
     return [partition_helper(lattice, functions, 0, n, c, helper_cache) for c in range(len(lattice))]
 
 class FooContext:
-    """ Helper class for delta_foo, containing:
+    """Helper class for delta_foo, containing:
 
-        + (S) One sub-list of good pairs for each element in the lattice
-        + (C) All conflicting tuples from all elements in the lattice
-        + (R) A cross-referencing list of elements in the lattice
-        + (F) All pairs of elements in the lattice that lost support
+    + (S) One sub-list of good pairs for each element in the lattice.
+    + (C) All conflicting tuples from all elements in the lattice.
+    + (R) A cross-referencing list of elements in the lattice.
+    + (F) All pairs of elements in the lattice that lost support.
     """
     def __init__(self, n):
-        """ Creates a helper class for delta_foo, containing:
+        """Creates a helper class for delta_foo, containing:
 
-            + (S) One sub-list of good pairs for each element in the lattice
-            + (C) All conflicting tuples from all elements in the lattice
-            + (R) A cross-referencing list of elements in the lattice
-            + (F) All pairs of elements in the lattice that lost support
+        + (S) One sub-list of good pairs for each element in the lattice.
+        + (C) All conflicting tuples from all elements in the lattice.
+        + (R) A cross-referencing list of elements in the lattice.
+        + (F) All pairs of elements in the lattice that lost support.
         """
         self.good_pairs = [set() for _ in range(n)]
         self.conflicts = set()
@@ -205,8 +194,8 @@ class FooContext:
         self.falling_pairs = set()
 
     def process(self, lattice, delta, u, v):
-        """ Sends the pair (u, v) to the set of conflicts (C), falling_pairs (F)
-            or good_pairs (S), according to the property that holds for the pair.
+        """Sends the pair (u, v) to the set of conflicts (C), falling_pairs (F)
+        or good_pairs (S), according to the property that holds for the pair.
         """
         w = lattice.lubs[u][v]
         if lattice.lattice[lattice.lubs[delta[u]][delta[v]]][delta[w]] != 1:
@@ -219,9 +208,9 @@ class FooContext:
             self.falling_pairs.add((u, v))
     
     def check_supports(self, lattice, delta, u):
-        """ Identifies all pairs of the form (u, x) that lost their support because
-            of a change in delta(u). It adds (u, x) to the appropiate set of
-            conflicts (C), or falling_pairs (F).
+        """Identifies all pairs of the form (u, x) that lost their support
+        because of a change in delta(u). It adds (u, x) to the appropiate set
+        of conflicts (C), or falling_pairs (F).
         """
         while self.cross_references[u]:
             v = self.cross_references[u].pop()
@@ -233,8 +222,8 @@ class FooContext:
                 self.process(lattice, delta, u, v)
 
 def delta_foo(lattice, functions):
-    """ Calculates Delta using the Greatest Lower Bound between all the `functions`
-        and then fixes the resulting function until it's a valid space-fumction.
+    """Calculates Delta using the Greatest Lower Bound between all the `functions`
+    and then fixes the resulting function until it's a valid space-function.
     """
     n = len(lattice)
     # Here delta[c] = glb(fn_1[c], fn_2[c], ..., fn_n[c]), for fn_i in functions
@@ -301,8 +290,7 @@ def delta_foo(lattice, functions):
 
 # This may be the wrong way of calculating S. ¯\_(ツ)_/¯
 def S(i):
-    """ Probably the log_2 of i aproximated to the ceilling, but allways >= 2.
-    """
+    """Probably the ceilling of log_2 of i, but allways >= 2."""
     j = 2
     while j * j < i:
         j += 1
@@ -388,8 +376,7 @@ def work(i):
 # #######################################
 
 def lattice_from_joins(joins):
-    """ Converts a join matrix of a lattice to an implies matrix
-    """
+    """Converts a join matrix of a lattice to an implies matrix."""
     N = len(joins)
 
     lattice = [[0 for i in range(N)] for j in range(N)]
@@ -402,10 +389,11 @@ def lattice_from_joins(joins):
     return lattice
 
 def explode(lc_all):
-    r"""
-    Helper function for lattice_from_covers.
-    Returns a list of all elements below each element `i` of the list of
-    covers `lc_all`.
+    """Helper function for lattice_from_covers.
+
+    Returns:
+        A list of all elements below each element `i` of the list of covers
+        `lc_all`.
     """
     n = len(lc_all)
     result = [set(i) for i in lc_all]
@@ -423,8 +411,7 @@ def explode(lc_all):
             
 
 def lattice_from_covers(lc_all):
-    """ Converts a list of lower covers of a lattice to an implies matrix
-    """
+    """Converts a list of lower covers of a lattice to an implies matrix."""
     N = len(lc_all)
     exploded = explode(lc_all)
     lattice = [[0]*N for _ in range(N)]
@@ -436,9 +423,7 @@ def lattice_from_covers(lc_all):
     return lattice
 
 def covers_from_lattice(matrix):
-    """ Converst an implies matrix of a lattice into its equivalent list of
-        covers.
-    """
+    """Converts an implies matrix into an equivalent list of covers."""
     n = len(matrix)
     result = [set() for _ in range(n)]
     for i, row in enumerate(matrix):
@@ -544,15 +529,14 @@ def gen_lattice(n):
     return joins
 
 def powerset_lattice(n):
-    """ Generate the equivalent lattice for a powerset of 2^n elements.
+    """Generate the equivalent lattice for a powerset of 2^n elements.
 
-        The generated lattice can be used with the `Lattice` class, or
-        converted with the `covers_from_lattice` function.
+    The generated lattice can be used with the `Lattice` class, or converted
+    with the `covers_from_lattice` function.
 
-        INPUTS:
-        + `n` -- The power of 2 for the number of elements. For example,
-          powerset of n=3 produces the covers for a lattice of 2^3, or 8,
-          elements. 
+    Args:
+        n: The power of 2 for the number of elements. For example, powerset of
+            `n = 3` produces the covers for a lattice of 2^3, or 8, elements. 
     """
     powerset = [set(elem) for i in range(n+1) for elem in combinations(range(1, n+1), i)]
     result = [[0 for _ in range(len(powerset))] for _ in range(len(powerset))]
@@ -565,23 +549,23 @@ def powerset_lattice(n):
 # #######################################
 
 def process_file(path, gen_functions=False):
-    """
-    Process the file located in `path`, which should contain
-    a list of join_matrices and convert them to a dictionary
-    of implieas_matrices so it can be used by `delta.py`.
+    """Processes the file located in `path`, which should contain a list of
+    join_matrices, and converts them to a dictionary of implieas_matrices so it
+    can be used by `delta.py`.
 
-    Also allows the preprocessing of all the space functions
-    associated with each lattice in the list, and saves the
-    results in files with the corresponding key in the dictionary
-    as the name of the file with the prefix "sf_".
+    Also allows the preprocessing of all the space functions associated with
+    each lattice in the list, and saves the results in files with the
+    corresponding key in the dictionary as the name of the file with the prefix
+    "sf_".
 
-    INPUTS:
-    + `path` -- The location of the file relative to the script.
-    + `gen_functions` -- If True, generates the corresponding
-      space functions for each processed lattice and saves them
-      in a file named with the equivalent key of the resulting
-      dictionary, prefixed with "sf_" and ending in ".in".
-      If False (default), do nothing else.
+    Args:
+        path: The location of the file relative to the script.
+        gen_functions:
+            - If True, generates the corresponding space functions for
+            each processed lattice and saves them in a file named with the
+            equivalent key of the resulting dictionary, prefixed with "sf_" and
+            ending in ".in".
+            - If False (default), do nothing else.
     """
 
     # Read list of matrices from a file.

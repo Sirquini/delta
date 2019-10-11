@@ -33,6 +33,9 @@ def binomial(n, k):
 
 def is_distributive(lattice):
     """ Test if the `lattice` is a distributive lattice.
+
+    Args:
+        lattice: A Lattice instance.
     """
     n = len(lattice)
     pairs = combinations(range(n), 2)
@@ -119,6 +122,7 @@ def test_distribution(n, p, samples):
         distribution[size] = distribution.get(size, 0) + 1
     print(" Done.", file=sys.stderr, flush=True)
     print_distribution(distribution, 50)
+    return distribution
 
 
 def test_distributive_lattices(n, p, limit, samples):

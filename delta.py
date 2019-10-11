@@ -475,8 +475,8 @@ def check_supports(lattice, delta, u, good_pairs, conflicts, cross_references, f
 
     Uing the global variable `LUBs`
     """
-    while len(cross_references[u]) != 0:
-        v = cross_references[u].pop()
+    for v in cross_references[u].copy():
+        # v = cross_references[u].pop()
         w = LUBs[u][v]
         if LUBs[delta[u]][delta[v]] != delta[w]:
             good_pairs[w].discard((u, v))
@@ -1006,9 +1006,9 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
         # Delta.AST: TestResults("Delta*"),
         Delta.FOO: TestResults("Delta_foo(V4)"),
         # Delta.FOO_B: TestResults("Delta_foo(V3)"),
-        Delta.AST_PART: TestResults("Delta*(OVERLAP)"),
-        Delta.AST_PART_B: TestResults("Delta*(PART+O2)"),
-        Delta.N: TestResults("Delta_n(Preprocessed)")
+        # Delta.AST_PART: TestResults("Delta*(OVERLAP)"),
+        # Delta.AST_PART_B: TestResults("Delta*(PART+O2)"),
+        Delta.N: TestResults("Delta_n(Preprocessed)", True)
     }
 
     for _ in range(n):
@@ -1044,17 +1044,17 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
         #     print("-- Time:", fn_time, "\n")
         #     print("Delta_0:         ", [glb(i) for i in zip(*sample_functions)], "\n")
 
-        fn_time, delta_ast_overlapping_result = run_test_case(delta_ast_overlapping_partition, lattice, sample_functions)
-        delta_results[Delta.AST_OVERLAP].update_times(fn_time, n)
-        if verbose:
-            print("Delta*(OVERLAP): ", repr(delta_ast_overlapping_result))
-            print("-- Time:", fn_time, "\n")
+        # fn_time, delta_ast_overlapping_result = run_test_case(delta_ast_overlapping_partition, lattice, sample_functions)
+        # delta_results[Delta.AST_OVERLAP].update_times(fn_time, n)
+        # if verbose:
+        #     print("Delta*(OVERLAP): ", repr(delta_ast_overlapping_result))
+        #     print("-- Time:", fn_time, "\n")
 
-        fn_time, delta_ast_part_result = run_test_case(delta_ast_partition, lattice, sample_functions)
-        delta_results[Delta.AST_LATEST].update_times(fn_time, n)
-        if verbose:
-            print("Delta*(PART+O2): ", repr(delta_ast_part_result))
-            print("-- Time:", fn_time, "\n")
+        # fn_time, delta_ast_part_result = run_test_case(delta_ast_partition, lattice, sample_functions)
+        # delta_results[Delta.AST_LATEST].update_times(fn_time, n)
+        # if verbose:
+        #     print("Delta*(PART+O2): ", repr(delta_ast_part_result))
+        #     print("-- Time:", fn_time, "\n")
 
         fn_time = perf_counter()
         delta_max_result = delta_n(lattice, space_functions, sample_functions)
@@ -1073,10 +1073,10 @@ def run(lattice, verbose = False, test_functions = None, n_tests = 100, n_functi
             delta_results[Delta.FOO].errors.append((sample_functions, delta_foo_result, delta_max_result))
         # if delta_foo_b_result != delta_max_result:
         #     delta_results[Delta.FOO_B].errors.append((sample_functions, delta_foo_b_result, delta_max_result))
-        if delta_ast_overlapping_result != delta_max_result:
-            delta_results[Delta.AST_OVERLAP].errors.append((sample_functions, delta_ast_overlapping_result, delta_max_result))
-        if delta_ast_part_result != delta_max_result:
-            delta_results[Delta.AST_LATEST].errors.append((sample_functions, delta_ast_part_result, delta_max_result))
+        # if delta_ast_overlapping_result != delta_max_result:
+        #     delta_results[Delta.AST_OVERLAP].errors.append((sample_functions, delta_ast_overlapping_result, delta_max_result))
+        # if delta_ast_part_result != delta_max_result:
+        #     delta_results[Delta.AST_LATEST].errors.append((sample_functions, delta_ast_part_result, delta_max_result))
 
     print("Number of iterations:", n)
 
@@ -1131,12 +1131,16 @@ def write_test_results_csv(name, results):
 def run_full_tests():
     from lattice import process_file
     from datetime import datetime
+    from generation import progress_bar
     # Read the lattice to test from
     lattices = process_file("distributive_lattices.py")
     results = []
     start_time = datetime.now().strftime("%Y-%m-%d-%H%M")
+    count = 0
     for key, lattice in lattices.items():
         print("* Using lattice `{}` ({} nodes)".format(key, len(lattice)))
+        count += 1
+        progress_bar(count, len(lattices), 50)
         for i in range(2, 6):
             print("Test Functions:", i)
             result = run(lattice, n_functions=i, fns_file=relative_path("generated", "sf_{}.in".format(key)))
@@ -1145,6 +1149,7 @@ def run_full_tests():
             result["functions"] = i
             results.append(result)
         print("================================================================\n")
+    eprint(" Done")
     write_test_results_csv("results-{}.csv".format(start_time), results)
 
 def run_square():
@@ -1378,7 +1383,7 @@ def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests 
     # Used for showing the aggregate results at the end
     delta_results = {
         Delta.FOO: TestResults("Delta_foo(V4)"),
-        Delta.FOO_B: TestResults("Delta_foo(V3)"),
+        # Delta.FOO_B: TestResults("Delta_foo(V3)"),
         # Delta.AST: TestResults("Delta+"),
         # Delta.AST_V2: TestResults("Delta++"),
         # Delta.AST_V3: TestResults("Delta+3"),
@@ -1409,14 +1414,14 @@ def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests 
         
         eprint(":", end='')
 
-        fn_time, delta_foo_b_result = run_test_case(delta_foo_b, lattice_matrix, sample_functions)
-        # fn_time, delta_foo_b_result = (0.0, [0])
-        delta_results[Delta.FOO_B].update_times(fn_time, n)
-        if verbose:
-            print("{}: {}".format(delta_results[Delta.FOO_B].name, repr(delta_foo_b_result)))
-            print("-- Time: {}\n".format(fn_time))
+        # fn_time, delta_foo_b_result = run_test_case(delta_foo_b, lattice_matrix, sample_functions)
+        # # fn_time, delta_foo_b_result = (0.0, [0])
+        # delta_results[Delta.FOO_B].update_times(fn_time, n)
+        # if verbose:
+        #     print("{}: {}".format(delta_results[Delta.FOO_B].name, repr(delta_foo_b_result)))
+        #     print("-- Time: {}\n".format(fn_time))
         
-        eprint(":", end='')
+        # eprint(":", end='')
 
         # fn_time, delta_ast_result = run_test_case(delta_ast, lattice_matrix, sample_functions)
         # fn_time, delta_ast_result = (0.0, [0])
@@ -1636,8 +1641,8 @@ if __name__ == "__main__":
     # run_random_space_functions()
     # run_powerset(exponent=3, verbose=True, test_functions=[(0,4,5,6,7,7,7,7),(0,3,2,1,6,5,4,7)])
     # run_space_projection()
-    # run_full_powerset_tests()
+    run_full_powerset_tests()
     # run_powerset_space_function_pairs()
     # test_space_functions()
-    run_space_functions_for_m()
+    # run_space_functions_for_m()
     # all_space_functions_diagram()

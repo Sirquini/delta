@@ -154,6 +154,8 @@ def partition_helper(lattice, functions, first, last, c, helper_cache):
     cached_result = helper_cache[c][first][last-1]
     if cached_result is not None:
         return cached_result
+    if c == 0:
+        return 0
     fn_num = last - first
     if fn_num == 1:
         return functions[first][c]
@@ -212,8 +214,8 @@ class FooContext:
         because of a change in delta(u). It adds (u, x) to the appropiate set
         of conflicts (C), or falling_pairs (F).
         """
-        while self.cross_references[u]:
-            v = self.cross_references[u].pop()
+        for v in self.cross_references[u].copy():
+            # v = self.cross_references[u].pop()
             w = lattice.lubs[u][v]
             if lattice.lubs[delta[u]][delta[v]] != delta[w]:
                 self.good_pairs[w].discard((u, v))
@@ -230,7 +232,6 @@ def delta_foo(lattice, functions):
     delta = [lattice.glb(i) for i in zip(*functions)]
     # Contains all delta_foo supporting structures (S, C, R, F)
     context = FooContext(n)
-
     # Calculate all initial conflicts in the candidate solution
     for u, v in combinations(range(n), 2):
         context.process(lattice, delta, u, v)
@@ -240,7 +241,7 @@ def delta_foo(lattice, functions):
         if lattice.lattice[lattice.lubs[delta[u]][delta[v]]][delta[w]] != 1:
             delta[w] = lattice.lub((delta[u], delta[v]))
             context.falling_pairs.update(context.good_pairs[w])
-            context.good_pairs[w] = set([(u, v)])
+            context.good_pairs[w] = {(u, v)}
 
             context.check_supports(lattice, delta, w)
             context.cross_references[u].add(v)

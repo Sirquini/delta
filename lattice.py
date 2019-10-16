@@ -1,7 +1,6 @@
 import os
 import random
 from itertools import combinations, product
-from delta import calculate_lubs, calculate_glbs
 from graphviz import Digraph
 
 # ######################################
@@ -132,7 +131,7 @@ class Lattice:
         N = len(self)
         test_pairs = tuple(combinations(range(N), 2))
         return [(0,) + fn for fn in product(range(N), repeat=N-1) if self.is_fn_distributive((0,) + fn, test_pairs)]
-    
+
     def _calculate_implications(self):
         """Calculates the matrix of implications for the lattice."""
         N = len(self)
@@ -142,6 +141,53 @@ class Lattice:
         """Calculates the Heyting implication of the pair (`a`, `b`)."""
         # a -> b ::= glb_{i <= b} { i | a lub i >= b }
         return self.glb((i for i in range(len(self)) if self.lattice[b][i] == 1 and self.lattice[self.lubs[a][i]][b] == 1))
+
+# ########## Helper Functions ##########
+
+def calculate_lubs(lattice):
+    """Calculates the matrix of Least Upper Bounds for the `lattice`."""
+    n = len(lattice)
+    # Creates a decoding table
+    encoding = {}
+    for i in range(n):
+        encoding[tuple(v[i] for v in lattice)] = i
+    result = [[0 for i in range(n)] for j in range(n)]
+    for i in range(n):
+        for j in range(i+1):
+            result[i][j] = pair_lub(i, j, lattice, encoding)
+            result[j][i] = result[i][j]
+    return result
+
+def pair_lub(a, b, lattice, encoding):
+    """Calculates the least upper bound of the pair (`a`, `b`)."""
+    if lattice[a][b] == 1: return a
+    elif lattice[b][a] == 1: return b
+    else:
+        n = len(lattice)
+        entry = [row[a] * row[b] for row in lattice]
+        return encoding.get(tuple(entry), n-1) # result or top
+
+def calculate_glbs(lattice):
+    """Calculates the matrix of Greatest Lower Bounds for the `lattice`."""
+    n = len(lattice)
+    # Creates a decoding table
+    encoding = {}
+    for i, v in enumerate(lattice):
+        encoding[tuple(v)] = i
+    result = [[0 for i in range(n)] for j in range(n)]
+    for i in range(n):
+        for j in range(i+1):
+            result[i][j] = pair_glb(i, j, lattice, encoding)
+            result[j][i] = result[i][j]
+    return result
+
+def pair_glb(a, b, lattice, encoding):
+    """Calculates the greatest lower bound of the pair (`a`, `b`)."""
+    if lattice[a][b] == 1: return b
+    elif lattice[b][a] == 1: return a
+    else:
+        entry = [a * b for a, b in zip(lattice[a], lattice[b])]
+        return encoding.get(tuple(entry), 0) # result or bottom
 
 # ######################################
 

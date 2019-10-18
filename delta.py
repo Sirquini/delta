@@ -191,7 +191,7 @@ def random_space_function(lattice):
             result[i] = lattice.lub((result[atom] for atom in all_atoms if lattice.lattice[i][atom] == 1))
     return result
 
-def decode_powerset_function(lattice, encoded_fn):
+def decode_powerset_function(lattice, encoded_fn, atoms=None):
     """Expands an atoms-mapping to a space function.
 
     The atoms in `encoded_fn` are read in the same order as calling 
@@ -200,9 +200,13 @@ def decode_powerset_function(lattice, encoded_fn):
     Args:
         lattice: A Lattice instance.
         encoded_fn: A list mapping atoms.
+        atoms: The corresponding list of atoms, if already calculated.
     """
     n = len(lattice)
-    all_atoms = lattice.atoms()
+    if atoms is None:
+        all_atoms = lattice.atoms()
+    else:
+        all_atoms = atoms
     # Map 0
     result = [0 for _ in range(n)]
     # Map all atoms to the values of encoded_fn
@@ -214,6 +218,19 @@ def decode_powerset_function(lattice, encoded_fn):
             # f(c) = Vf(a_i) where Va_i = c and each a_i is an atom.
             result[i] = lattice.lub((result[atom] for atom in all_atoms if lattice.lattice[i][atom] == 1))
     return result
+
+def all_space_functions(lattice):
+    """Generates all space functions for the given `lattice`.
+
+    This mapping function is only guaranteed generate valid space functions
+    if the `lattice` is isomorphic to a powerset lattice.
+
+    Args:
+        lattice: A Lattice instance.
+    """
+    n = len(lattice)
+    all_atoms = lattice.atoms()
+    return [decode_powerset_function(lattice, fn, all_atoms) for fn in product(range(n), repeat=len(all_atoms))]
 
 def i_projection(lattice, function, c):
     """Returns the i-projection of `c` for the `lattice`.

@@ -1,8 +1,7 @@
 import multiprocessing as mp
 from itertools import combinations, product
 from graphviz import Digraph
-from delta import calculate_lubs, calculate_glbs
-from lattice import covers_from_lattice, lattice_from_covers
+from lattice import covers_from_lattice, lattice_from_covers, calculate_lubs, calculate_glbs
 from generation import is_distributive
 from time import perf_counter
 

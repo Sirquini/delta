@@ -689,7 +689,7 @@ def delta_n(lattice, space_functions, functions):
     """ Calculate Delta for a set of `functions` over a `lattice`
         and a all possible `space_functions` for that lattice.
     """
-    valid_functions = (fn for fn in space_functions if all(map(lambda elem: leq_fn(lattice, fn, elem), functions)))
+    valid_functions = (fn for fn in space_functions if all(leq_fn(lattice, fn, elem) for elem in functions))
     return list(max_fn(lattice, (fn for fn in valid_functions)))
 
 # ######################################

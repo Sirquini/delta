@@ -196,6 +196,27 @@ def pair_glb(a, b, lattice, encoding):
 # Lattice and local context
 # ######################################
 
+class HelperCache:
+    """Helper class for delta_ast_partition.
+
+    Acts as a look-up table so data can be inserted/query.
+    """
+
+    def __init__(self, n, m):
+        """Creates a HelperCache instance.
+
+        Args:
+            n: The size of the lattice.
+            m: The number of space functions to evaluate.
+        """
+        self.cache = [[[None] * m for _ in range(m)] for _ in range(n)]
+    
+    def insert(self, c, first, last, result):
+        self.cache[c][first][last] = result
+    
+    def get(self, c, first, last):
+        return self.cache[c][first][last]
+
 def partition_helper(lattice, functions, first, last, c, helper_cache):
     cached_result = helper_cache[c][first][last-1]
     if cached_result is not None:
@@ -215,6 +236,10 @@ def partition_helper(lattice, functions, first, last, c, helper_cache):
 def delta_ast_partition(lattice, functions):
     """Calculates Delta* for a set of `functions` over a `lattice`
     partitioning the set of functions and using a look-up table.
+
+    Args:
+        lattice: A Lattice instance.
+        functions: A list of space-functions.
     """
     n = len(functions)
     helper_cache = [[[None] * n for _ in range(n)] for _ in range(len(lattice))]
@@ -272,6 +297,10 @@ class FooContext:
 def delta_foo(lattice, functions):
     """Calculates Delta using the Greatest Lower Bound between all the `functions`
     and then fixes the resulting function until it's a valid space-function.
+
+    Args:
+        lattice: A Lattice instance.
+        functions: A list of space-functions.
     """
     n = len(lattice)
     # Here delta[c] = glb(fn_1[c], fn_2[c], ..., fn_n[c]), for fn_i in functions

@@ -3,11 +3,22 @@ import random
 from itertools import combinations, product
 from lattice import Lattice, covers_from_lattice
 
-def progress_bar(value, end, length=20):
+def progress_bar(value, end, length=20, status=''):
+    """Prints a progress indicator to `stderr`, with the current `value`
+    and a bar of width `length`.
+
+    This function flushes the `stderr` stream.
+
+    Args:
+      value: the number of the current iteration.
+      end: the max number.
+      length: optional width of the progress bar in characters, defaults to 20.
+      status: optional message, max 10 characters
+    """
     percent = value * 100 // end
     bar = '=' * (percent * length // 100)
     spaces = ' ' * (length - len(bar))
-    print("\rProgress: [{}] {}/{}".format(bar + spaces, value, end), end='', file=sys.stderr, flush=True)
+    print("\rProgress: [{}] {}/{} {:10.10}".format(bar + spaces, value, end, status), end='', file=sys.stderr, flush=True)
 
 def print_distribution(dist, length=20, extra=None):
     top = max(dist.values())

@@ -339,12 +339,11 @@ def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests 
     func_gen_time = 0
     if brute_force:
         pb_max = 3*n
+
         func_gen_time = perf_counter()
-        if exponent == 5 and POWERSET_32_SF is not None:
-            space_functions = POWERSET_32_SF
-        else:
-            space_functions = all_space_functions(lattice)
+        space_functions = all_space_functions(lattice)
         func_gen_time = perf_counter() - func_gen_time
+
         eprint(".")
         print("Space functions:", len(space_functions))
         print("Space functions preprocessing time:   ", func_gen_time)
@@ -447,12 +446,17 @@ def run_full_powerset_tests():
 
 # #######################################
 
-def run_arbitrary_lattices(sizes):
+def run_arbitrary_lattices(sizes, fixed_lattice=False):
     """Runs and times DeltaGen+ against arbitrary lattices and saves the
     results to a CSV file.
 
     Agrs:
-      sizes: A list of lattice sizes to run.
+      sizes: A list of lattice sizes to run/number of space functions.
+      fixed_lattice: 
+      - If `True`, `size` becomes the number of space functions per lattice of
+      size 10.
+      - If `False` (default), `size` becomes the sizes of lattices with a fixed
+      number of space functions (4).
     
     IO:
       Generates a CSV file with the results of the run, the name of the file
@@ -464,36 +468,120 @@ def run_arbitrary_lattices(sizes):
     from experimental import NxLattice
     from lattice import random_lattice, lattice_from_covers
 
-    results = []
+    elapsed_time = perf_counter()
     start_time = datetime.now().strftime("%Y-%m-%d-%H%M")
-    
 
     progress_bar(0, 1, 50, "Generating")
     # Generate the random lattices, using experimental parallel computation.
-    lattices = [[NxLattice(lattice_from_covers(random_lattice(size, 0.95)), size>7) for _ in range(10)] for size in sizes]
+    if fixed_lattice:
+        lattices = [NxLattice(lattice_from_covers(random_lattice(10, 0.95)), True)]
+    else:
+        lattices = [NxLattice(lattice_from_covers(random_lattice(size, 0.95)), size>7) for size in sizes]
     progress_bar(1, 1, 50, "Generating")
 
     # used for counting
-    n_lattices = len(lattices) * 10
+    n_lattices = len(lattices)
     count = 0
 
     # Calculate space functions and IMPLYs
-    progress_bar(count, n_lattices, 50, "Preprocc")
-    for batch in lattices:
-        for lattice in batch:
-            lattice.impls
-            lattice.space_functions
-            count += 1
-            progress_bar(count, n_lattices, 50, "Preprocc")
+    sf_gen_times = []
+    preproc_times = []
+    progress_bar(count, n_lattices, 50, "Preproc")
+    for lattice in lattices:
+        preproc_time = perf_counter()
+        lattice.impls
+        preproc_times.append(perf_counter() - preproc_time)
+        sf_gen_time = perf_counter()
+        lattice.space_functions
+        sf_gen_times.append(perf_counter() - sf_gen_time)
+        count += 1
+        progress_bar(count, n_lattices, 50, "Preproc")
 
-    eprint(" Done.")
+    # Run each set of lattices, take times and save the results
+    if fixed_lattice:
+        n_lattices = len(sizes)
+        items = sizes
+        lattice = lattices[0]
+    else:
+        items = lattices
+    count = 0
+    time_results = [] # ([(delta_gen_time, brute_force_time), ...], test_time)
+    progress_bar(count, n_lattices * 100, 50, "Running")
+    for item in items:
+        batch_results = []
+        test_time = perf_counter()
+        if fixed_lattice:
+            size = item
+        else:
+            lattice = item
+            size = 4
+        # 100 runs per lattice
+        for _ in range(100):
+            # Generate som random space functions
+            test_functions = random.sample(lattice.space_functions, size)
+
+            # Run and time each algorithm
+            delta_gen_time, _ = run_test_case(delta_foo, lattice, test_functions)
+            delta_n_time = perf_counter()
+            delta_n(lattice.lattice, lattice.space_functions, test_functions)
+            delta_n_time = perf_counter() - delta_n_time
+
+            # Save the results.
+            batch_results.append((delta_gen_time, delta_n_time))
+        time_results.append((batch_results, perf_counter() - test_time))
+        count += 1
+        progress_bar(count, n_lattices * 100, 50, "Running")
+
+    results = []
+    count = 0
+    progress_bar(count, n_lattices, 50, "Mapping")
+    # Format the data and save it to a CSV file for later use.
+    for i, lattice in enumerate(lattices):
+        if fixed_lattice:
+            items = sizes
+        else:
+            items = [4]
+        for k, size in enumerate(items):
+            if fixed_lattice:
+                i = k
+                sf_gen_time = sf_gen_times[0]
+                preproc_time = preproc_times[0]
+            else:
+                sf_gen_time = sf_gen_times[i]
+                preproc_time = preproc_times[i]
+            test_gen = TestResults("DeltaGen+")
+            test_bf = TestResults("Brute-force")
+
+            test_gen.avg_time = sum(times[0] for times in time_results[i][0]) / len(time_results[i][0])
+            test_bf.avg_time = sum(times[1] for times in time_results[i][0]) / len(time_results[i][0])
+
+            test_gen.min_time = min(times[0] for times in time_results[i][0])
+            test_bf.min_time = min(times[1] for times in time_results[i][0])
+
+            test_gen.max_time = max(times[0] for times in time_results[i][0])
+            test_bf.max_time = max(times[1] for times in time_results[i][0])
+            
+            results.append({
+                "result": (test_gen, test_bf),
+                "total": time_results[i][1],
+                "sf": len(lattice.space_functions),
+                "sf_gen_time": sf_gen_time,
+                "preproc": preproc_time,
+                "lattice": f"id_{i}_n_{len(lattice)}",
+                "nodes": len(lattice),
+                "functions": size,
+            })
+
+            count += 1
+            progress_bar(count, n_lattices, 50, "Mapping")
+
+    elapsed_time = perf_counter() - elapsed_time
+    eprint(" Done.\nRan for {} seconds.".format(elapsed_time))
     write_test_results_csv("results-{}.csv".format(start_time), results)
 
 if __name__ == "__main__":
-    # This is only temporary, since the number of space functions for powerset
-    # with 32 nodes is 32^5
-    # global POWERSET_32_SF
-    POWERSET_32_SF = all_space_functions(Lattice(powerset_lattice(5)))
-    # POWERSET_32_SF = None
     # run_full_tests(size_limit=10)
-    run_full_powerset_tests()
+    # run_full_powerset_tests()
+    # run_arbitrary_lattices([4, 5, 6, 7, 8, 9, 10])
+    run_arbitrary_lattices([4, 8, 12, 16, 24, 28, 32], fixed_lattice=True)
+

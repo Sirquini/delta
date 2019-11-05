@@ -7,6 +7,8 @@ from itertools import combinations
 from itertools import permutations
 from time import perf_counter
 
+from lattice import Lattice
+
 def calculate_lubs(lattice):
     """Calculates the matrix of Lower Upper Bounds for the `lattice`."""
     n = len(lattice)
@@ -708,6 +710,25 @@ def delta_n(lattice, space_functions, functions):
     """
     valid_functions = (fn for fn in space_functions if all(leq_fn(lattice, fn, elem) for elem in functions))
     return list(max_fn(lattice, (fn for fn in valid_functions)))
+
+# ######################################
+
+# ######################################
+# Delta functions for Lattice instances
+# ######################################
+
+def delta_plus(lattice: Lattice, functions):
+    """Calculates Delta+ for a set of `functions` over a `lattice`.
+
+    Args:
+      lattice: A Lattice instance.
+      functions: A list of space functions.
+    """
+    n = len(lattice)
+    return [lattice.glb(
+        lattice.lub(apply_fns(functions, t)) for t in product(range(n), repeat=len(functions))
+        if lattice.lattice[lattice.lub(t)][c] == 1
+    ) for c in range(n)]
 
 # ######################################
 

@@ -10,11 +10,11 @@ from lattice import Lattice, powerset_lattice, delta_foo, delta_ast_partition
 # #######################################
 # Experiments mainly over lattices,
 # sapce-functions, Delta implementations,
-# Lattice implementation, etc.
+# Lattice implementations, etc.
 # #######################################
 
 # #######################################
-# Utility fumctions for file manipulation
+# Utility functions for file manipulation
 # #######################################
 
 def from_rel_path(path, *paths):

@@ -46,6 +46,18 @@ class Lattice:
         lt = combinations(range(N),2)
         return all(self.lubs[a][b] != -1 for (a, b) in lt)
     
+    def is_modular(self):
+        """Returns True if the lattice is modular, False otherwise.
+
+        A lattice is modular if it satisfies for all elements `a`, `b`, and `c`:
+        
+        + If  `a` >= `c`, then `a` glb (`b` lub `c`) = (`a` glb `b`) lub `c`.
+
+        Warning: Not Tested!!
+        """
+        n = len(self)
+        return all(self.glbs[a][self.lubs[b][c]] == self.lubs[self.glbs[a][b]][c] for c in range(n) for a in range(n) for b in range(n) if self.lattice[a][c] == 1)
+
     def is_fn_distributive(self, fn, test_pairs):
         """Checks if a given function `fn` is distributive."""
         return all(fn[self.lubs[t0][t1]] == self.lubs[fn[t0]][fn[t1]] for t0, t1 in test_pairs)
@@ -310,6 +322,79 @@ def delta_foo(lattice, functions):
     # Calculate all initial conflicts in the candidate solution
     for u, v in combinations(range(n), 2):
         context.process(lattice, delta, u, v)
+
+    while len(context.conflicts) != 0:
+        (u, v), w = context.conflicts.pop()
+        if lattice.lattice[lattice.lubs[delta[u]][delta[v]]][delta[w]] != 1:
+            delta[w] = lattice.lub((delta[u], delta[v]))
+            context.falling_pairs.update(context.good_pairs[w])
+            context.good_pairs[w] = {(u, v)}
+
+            context.check_supports(lattice, delta, w)
+            context.cross_references[u].add(v)
+            context.cross_references[v].add(u)   
+        else:
+            context.process(lattice, delta, u, v)
+        
+        while len(context.falling_pairs) != 0:
+            x, y = context.falling_pairs.pop()
+            z = lattice.lub((x, y))
+            
+            if lattice.lattice[delta[z]][lattice.lubs[delta[x]][delta[y]]] == 1:
+                context.process(lattice, delta, x, y)
+            else:
+                if delta[x] != lattice.glb((delta[x], delta[z])):
+                    delta[x] = lattice.glb((delta[x], delta[z]))
+                    context.falling_pairs.update(context.good_pairs[x])
+                    for u, v in context.good_pairs[x]:
+                        context.cross_references[u].add(v)
+                        context.cross_references[v].add(u)
+                    context.good_pairs[x].clear()
+                    context.check_supports(lattice, delta, x)
+                
+                if delta[y] != lattice.glb((delta[y], delta[z])):
+                    delta[y] = lattice.glb((delta[y], delta[z]))
+                    context.falling_pairs.update(context.good_pairs[y])
+                    for u, v in context.good_pairs[y]:
+                        context.cross_references[u].add(v)
+                        context.cross_references[v].add(u)
+                    context.good_pairs[y].clear()
+                    context.check_supports(lattice, delta, y)
+
+                if lattice.lub((delta[x], delta[y])) == delta[z]:
+                    context.good_pairs[z].add((x, y))
+                    context.cross_references[x].add(y)
+                    context.cross_references[y].add(x)
+                else:
+                    context.conflicts.add(((x, y), z))
+    return delta
+
+def delta_foo_nxt(lattice, functions, covers=None):
+    """Calculates Delta using the Greatest Lower Bound between all the `functions`
+    and then fixes the resulting function until it's a valid space-function.
+
+    This version of delta_foo only checks the pairs in the covers list, instead
+    of all the pairs when initialicing its support structure.
+
+    Args:
+        lattice: A Lattice instance.
+        functions: A list of space-functions.
+        covers: A list of cover relations, if `None` it generates such list.
+    """
+    n = len(lattice)
+    # Here delta[c] = glb(fn_1[c], fn_2[c], ..., fn_n[c]), for fn_i in functions
+    delta = [lattice.glb(i) for i in zip(*functions)]
+    # Contains all delta_foo supporting structures (S, C, R, F)
+    context = FooContext(n)
+    # Calculate the covers.
+    if covers is None:
+        covers = covers_from_lattice(lattice.lattice)
+    covers = [cvs + [node] for node, cvs in enumerate(covers)]
+    # Calculate all initial conflicts in the candidate solution
+    for cvs in covers:
+        for a in range(len(cvs)):
+            for b in range(a):
+                context.process(lattice, delta, cvs[a], cvs[b])
 
     while len(context.conflicts) != 0:
         (u, v), w = context.conflicts.pop()

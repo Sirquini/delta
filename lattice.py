@@ -257,6 +257,33 @@ def delta_ast_partition(lattice, functions):
     helper_cache = [[[None] * n for _ in range(n)] for _ in range(len(lattice))]
     return [partition_helper(lattice, functions, 0, n, c, helper_cache) for c in range(len(lattice))]
 
+def delta_partition(lattice, functions, jie_s=None):
+    """Calculates Delta* for a set of `functions` over a `lattice`
+    partitioning the set of functions and using a look-up table.
+
+    This implementation takes advantage of the join irreducible
+    elements to reduce the number of recursive calls.
+
+    Args:
+      lattice: A Lattice instance.
+      functions: A list of space-functions.
+      jie_s: A list of Join-Irreducible elements, if `None` it generates such list.
+    """
+
+    n = len(functions)
+    helper_cache = [[[None] * n for _ in range(n)] for _ in range(len(lattice))]
+    if jie_s is None:
+        jie_s = lattice.join_irreducible_elements()
+    
+    # Only call the recursive function for the join-irreducible elements
+    result = [0 for _ in range(len(lattice))]
+    for ji in jie_s:
+        result[ji] = partition_helper(lattice, functions, 0, n, ji, helper_cache)
+    for c in range(len(lattice)):
+        if c not in jie_s:
+            result[c] = lattice.lub(result[j] for j in jie_s if lattice.lattice[c][j] == 1)
+    return result
+
 class FooContext:
     """Helper class for delta_foo, containing:
 
@@ -369,7 +396,7 @@ def delta_foo(lattice, functions):
                     context.conflicts.add(((x, y), z))
     return delta
 
-def delta_foo_nxt(lattice, functions, covers=None):
+def delta_foo_cvrs(lattice, functions, covers=None):
     """Calculates Delta using the Greatest Lower Bound between all the `functions`
     and then fixes the resulting function until it's a valid space-function.
 
@@ -377,9 +404,9 @@ def delta_foo_nxt(lattice, functions, covers=None):
     of all the pairs when initialicing its support structure.
 
     Args:
-        lattice: A Lattice instance.
-        functions: A list of space-functions.
-        covers: A list of cover relations, if `None` it generates such list.
+      lattice: A Lattice instance.
+      functions: A list of space-functions.
+      covers: A list of cover relations, if `None` it generates such list.
     """
     n = len(lattice)
     # Here delta[c] = glb(fn_1[c], fn_2[c], ..., fn_n[c]), for fn_i in functions
@@ -440,6 +467,170 @@ def delta_foo_nxt(lattice, functions, covers=None):
                     context.cross_references[y].add(x)
                 else:
                     context.conflicts.add(((x, y), z))
+    return delta
+
+def delta_foo_jies(lattice, fns, jie_s=None):
+    """Calculates Delta using the Greatest Lower Bound between all the `functions`
+    and then fixes the resulting function until it's a valid space-function.
+
+    This version of delta_foo only checks the pairs of join-irreducible elements,
+    instead of all the pairs when initialicing its support structure.
+
+    Args:
+      lattice: A Lattice instance.
+      functions: A list of space-functions.
+      jie_s: A list of join-irreducible elements, if `None` it generates such list.
+    """
+    n = len(lattice)
+    delta = [lattice.glb(i) for i in zip(*fns)]
+    context = FooContext(n)
+    processed = set()
+    if jie_s is None:
+        jie_s = lattice.join_irreducible_elements()
+
+    for a in range(len(jie_s)):
+        for b in range(a):
+            u, v = jie_s[a], jie_s[b]
+            processed.add(u)
+            processed.add(v)
+            processed.add(lattice.lubs[u][v])
+            context.process(lattice, delta, u, v)
+    while len(context.conflicts) != 0:
+        (u, v), w = context.conflicts.pop()
+        if lattice.lattice[lattice.lubs[delta[u]][delta[v]]][delta[w]] != 1:
+            delta[w] = lattice.lub((delta[u], delta[v]))
+            context.falling_pairs.update(context.good_pairs[w])
+            context.good_pairs[w] = {(u, v)}
+
+            context.check_supports(lattice, delta, w)
+            context.cross_references[u].add(v)
+            context.cross_references[v].add(u)   
+        else:
+            context.process(lattice, delta, u, v)
+        
+        while len(context.falling_pairs) != 0:
+            x, y = context.falling_pairs.pop()
+            z = lattice.lub((x, y))
+            
+            if lattice.lattice[delta[z]][lattice.lubs[delta[x]][delta[y]]] == 1:
+                context.process(lattice, delta, x, y)
+            else:
+                if delta[x] != lattice.glb((delta[x], delta[z])):
+                    delta[x] = lattice.glb((delta[x], delta[z]))
+                    context.falling_pairs.update(context.good_pairs[x])
+                    for u, v in context.good_pairs[x]:
+                        context.cross_references[u].add(v)
+                        context.cross_references[v].add(u)
+                    context.good_pairs[x].clear()
+                    context.check_supports(lattice, delta, x)
+                
+                if delta[y] != lattice.glb((delta[y], delta[z])):
+                    delta[y] = lattice.glb((delta[y], delta[z]))
+                    context.falling_pairs.update(context.good_pairs[y])
+                    for u, v in context.good_pairs[y]:
+                        context.cross_references[u].add(v)
+                        context.cross_references[v].add(u)
+                    context.good_pairs[y].clear()
+                    context.check_supports(lattice, delta, y)
+
+                if lattice.lub((delta[x], delta[y])) == delta[z]:
+                    context.good_pairs[z].add((x, y))
+                    context.cross_references[x].add(y)
+                    context.cross_references[y].add(x)
+                else:
+                    context.conflicts.add(((x, y), z))
+    for i in range(n):
+        if i not in processed:
+            delta[i] = lattice.lub(delta[j] for j in jie_s if lattice.lattice[i][j] == 1)
+    return delta
+
+def delta_foo_cvrs_jies(lattice, fns, covers=None, jie_s=None):
+    """Calculates Delta using the Greatest Lower Bound between all the `functions`
+    and then fixes the resulting function until it's a valid space-function.
+
+    This version of delta_foo only checks the pairs of join-irreducibles from
+    the same set of covers, instead of all the pairs, when initialicing its
+    support structure.
+
+    Args:
+      lattice: A Lattice instance.
+      functions: A list of space-functions.
+      covers: A list of cover relations, if `None` it generates such list.
+      jie_s: A list of join-irreducible elements, if `None` it generates such list.
+    """
+    n = len(lattice)
+    delta = [lattice.glb(i) for i in zip(*fns)]
+    context = FooContext(n)
+    processed = set()
+    
+    # Calculate the covers.
+    if covers is None:
+        covers = covers_from_lattice(lattice.lattice)
+    covers = [cvs + [node] for node, cvs in enumerate(covers)]
+    
+    # Calculate the set of join-irredubles.
+    if jie_s is None:
+        jie_s = lattice.join_irreducible_elements()
+    
+    # Process only pairs of join-irreducibles from the same set of covers.
+    for a in range(len(jie_s)):
+        for b in range(a):
+            u, v = jie_s[a], jie_s[b]
+            if any((u in cvrs) and (v in cvrs) for cvrs in covers):
+                processed.add(u)
+                processed.add(v)
+                processed.add(lattice.lubs[u][v])
+                context.process(lattice, delta, u, v)
+    
+    # Unchanged
+    while len(context.conflicts) != 0:
+        (u, v), w = context.conflicts.pop()
+        if lattice.lattice[lattice.lubs[delta[u]][delta[v]]][delta[w]] != 1:
+            delta[w] = lattice.lub((delta[u], delta[v]))
+            context.falling_pairs.update(context.good_pairs[w])
+            context.good_pairs[w] = {(u, v)}
+
+            context.check_supports(lattice, delta, w)
+            context.cross_references[u].add(v)
+            context.cross_references[v].add(u)   
+        else:
+            context.process(lattice, delta, u, v)
+        
+        while len(context.falling_pairs) != 0:
+            x, y = context.falling_pairs.pop()
+            z = lattice.lub((x, y))
+            
+            if lattice.lattice[delta[z]][lattice.lubs[delta[x]][delta[y]]] == 1:
+                context.process(lattice, delta, x, y)
+            else:
+                if delta[x] != lattice.glb((delta[x], delta[z])):
+                    delta[x] = lattice.glb((delta[x], delta[z]))
+                    context.falling_pairs.update(context.good_pairs[x])
+                    for u, v in context.good_pairs[x]:
+                        context.cross_references[u].add(v)
+                        context.cross_references[v].add(u)
+                    context.good_pairs[x].clear()
+                    context.check_supports(lattice, delta, x)
+                
+                if delta[y] != lattice.glb((delta[y], delta[z])):
+                    delta[y] = lattice.glb((delta[y], delta[z]))
+                    context.falling_pairs.update(context.good_pairs[y])
+                    for u, v in context.good_pairs[y]:
+                        context.cross_references[u].add(v)
+                        context.cross_references[v].add(u)
+                    context.good_pairs[y].clear()
+                    context.check_supports(lattice, delta, y)
+
+                if lattice.lub((delta[x], delta[y])) == delta[z]:
+                    context.good_pairs[z].add((x, y))
+                    context.cross_references[x].add(y)
+                    context.cross_references[y].add(x)
+                else:
+                    context.conflicts.add(((x, y), z))
+    # Fix all the other elements
+    for i in range(n):
+        if i not in processed:
+            delta[i] = lattice.lub(delta[j] for j in jie_s if lattice.lattice[i][j] == 1)
     return delta
 
 # ######################################

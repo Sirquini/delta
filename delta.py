@@ -193,6 +193,57 @@ def random_space_function(lattice):
             result[i] = lattice.lub((result[atom] for atom in all_atoms if lattice.lattice[i][atom] == 1))
     return result
 
+def space_function(lattice):
+    """Generates a random space function valid for the given `lattice`
+    
+    Args:
+      lattice: A Lattice instance.
+    
+    Returns:
+      A list representing a valid space function, only valid for the given
+      `lattice` if it is distributive.
+    """
+    # Number of elements
+    n = len(lattice)
+    # The resulting space function mapped to None.
+    result = [None for _ in range(n)]
+    # The list of join-irreducible elements of the lattice
+    ji_s = lattice.join_irreducible_elements()
+    # Use a stack to know which Jis to update, preserving the monotonic property
+    work = ji_s.copy()
+    
+    while work:
+#         print("Working stack :", work)
+        # Remove the last element from the work stack
+        e = work.pop()
+#         print(e, ": Checking")
+        if result[e] is None:
+            # Element unprocessed
+            # Add dependencies
+            dep = [j for j in ji_s if j != e and lattice.lattice[e][j] == 1]
+#             print(e, ": Unprocessed")
+            if len(dep) == 0:
+                # No restriction
+                result[e] = random.randrange(0,n)
+#                 print(e, "Processed, Leaf")
+            else:
+                # check for unresolved dependencies
+                dep_map = [result[d] for d in dep]
+                if None in dep_map:
+                    work.append(e)
+                    work.extend([dep[i] for i, d in enumerate(dep_map) if d is None])
+#                     print(e, ": Dependencies not met :", dep, dep_map)
+                else:
+                    # All dependencies covered, solve for e
+                    result[e] = random.choice([i for i in range(n) if all(lattice.lattice[i][d] == 1 for d in dep_map)])
+#                     print(e, ": Processed, all deps solved :", dep, dep_map)
+    
+    # Now map all the other elements
+    for i in range(n):
+        if i not in ji_s:
+            result[i] = lattice.lub(result[j] for j in ji_s if lattice.lattice[i][j] == 1)
+    return result
+
 def decode_powerset_function(lattice, encoded_fn, atoms=None):
     """Expands an atoms-mapping to a space function.
 

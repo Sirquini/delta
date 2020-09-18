@@ -53,6 +53,21 @@ class MatrixLattice():
         """
         return vcomplement(b, a)
 
+    def join_irreducible_elements(self):
+        """Returns a list of all the join-irreducible elements in the lattice.
+
+        `x` is join-irreducible (or lub-irreducible) if:
+        + `x != 0`
+        + `a < x` and `b < x` imply `a lub b < x` for all `a` and `b` 
+        """
+        pairs = product(range(self.shape[0]), range(self.shape[1]))
+        result = []
+        for a, b in pairs:
+            tmp = self.bottom.copy()
+            tmp[a, b] = 1
+            result.append(tmp)
+        return result
+
 def downset(element):
     mask = element.flatten()
     sequence = [0 for i in mask if i == 1]

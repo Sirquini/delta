@@ -9,7 +9,7 @@ def complement(a, b):
 
 vcomplement = np.vectorize(complement)
 
-class MatrixLattie():
+class MatrixLattice():
     def __init__(self, shape):
         """Create a lattice for a matrix with dimensions
         set by the pair of ints `shape`.
@@ -109,11 +109,11 @@ def delta5_plus(lattice, functions, image):
 
 def run_dilations(entry, struct1, struct2):
     shape = entry.shape
-    lattice = MatrixLattie(shape)
+    lattice = MatrixLattice(shape)
     dilation1 = ndimage.binary_dilation(entry, structure=struct1).astype(entry.dtype)
     dilation2 = ndimage.binary_dilation(entry, structure=struct2).astype(entry.dtype)
     dilation3 = ndimage.binary_dilation(entry, structure=np.logical_and(struct1, struct2)).astype(entry.dtype)
-    print("Dilation results:")
+    print("\nDilation results:")
     print(dilation1)
     print(dilation2)
     print("Intersection d1, d2:")

@@ -1,6 +1,6 @@
 import numpy as np
 from scipy import ndimage
-from itertools import product
+from itertools import product, combinations
 
 def complement(a, b):
     if a == 1 and b == 0:
@@ -52,7 +52,7 @@ class MatrixLattice():
         """Returns a imply b.
         """
         return vcomplement(b, a)
-
+    
     def join_irreducible_elements(self):
         """Returns a list of all the join-irreducible elements in the lattice.
 
@@ -122,6 +122,44 @@ def delta5_plus(lattice, functions, image):
     search_space = downset(image)
     return partition_helper(lattice, functions, 0, n, image, helper_cache, search_space)
 
+def partition_helper2(lattice, functions, first, last, c, helper_cache):
+    cached_result = helper_cache.get((tuple(map(tuple, c)), first, last-1))
+    if cached_result is not None:
+        return cached_result
+    # No need to compute for the bottom
+    if np.array_equal(lattice.bottom, c):
+        return lattice.bottom
+    fn_num = last - first
+    if fn_num == 1:
+        return ndimage.binary_dilation(c, structure=functions[first]).astype(c.dtype)
+    else:
+        mid_point = first + fn_num // 2
+        result = lattice.glb(lattice.lub((partition_helper2(lattice, functions, first, mid_point, a, helper_cache), partition_helper2(lattice, functions, mid_point, last, lattice.imply(a, c), helper_cache))) for a in downset(c))
+        helper_cache[(tuple(map(tuple, c)), first, last-1)] = result
+        return result
+
+def delta_partition(lattice, functions, image):
+    """ Calculate Delta* for a set of `dilation functions` over a `lattice` for an `image`
+    partitioning the set of functions and using a look-up table.
+
+        
+    This implementation takes advantage of the join irreducible
+    elements to reduce the number of recursive calls.
+
+    Args:
+        lattice: A Lattice instance.
+        functions: A list of space-functions.
+        image: The image to apply the resulting space-function to.
+    """
+    n = len(functions)
+    helper_cache = {}
+    jie_s = lattice.join_irreducible_elements()
+    # Only call the recursive function for the join-irreducible elements
+    # needed to calculate Delta for the given image.
+    # Only return the delta function applied to the image,
+    # since the Lattice space can be exponentially huge.
+    return lattice.lub(partition_helper2(lattice, functions, 0, n, ji, helper_cache) for ji in jie_s if lattice.entails(image, ji))
+
 def run_dilations(entry, struct1, struct2):
     shape = entry.shape
     lattice = MatrixLattice(shape)
@@ -137,6 +175,63 @@ def run_dilations(entry, struct1, struct2):
     print(dilation3)
     print("Delta result:")
     print(delta5_plus(lattice, (struct1, struct2), entry))
+
+def run_dilations2(entry, struct1, struct2):
+    import matplotlib.pyplot as plt
+    from time import perf_counter
+
+    shape = entry.shape
+    l = MatrixLattice(shape)
+    dilation1 = ndimage.binary_dilation(entry, structure=struct1).astype(entry.dtype)
+    dilation2 = ndimage.binary_dilation(entry, structure=struct2).astype(entry.dtype)
+    dilation3 = ndimage.binary_dilation(entry, structure=np.logical_and(struct1, struct2)).astype(entry.dtype)
+    print("\nDilation results:")
+    print(dilation1)
+    print(dilation2)
+    print("Dilation of intersecting s1, s2:")
+    print(dilation3)
+    print("Old Delta result:")
+    old_time = perf_counter()
+    old_delta = delta5_plus(l, (struct1, struct2), entry)
+    old_time = perf_counter() - old_time
+    print(old_delta)
+    print("New Delta result:")
+    new_time = perf_counter()
+    new_delta = delta_partition(l, (struct1, struct2), entry)
+    new_time = perf_counter() - new_time
+    print(new_delta)
+
+    _, axs = plt.subplots(nrows=3, ncols=3)
+    axs[0, 0].set_title("Original image", pad=20)
+    axs[0, 0].matshow(entry)
+
+    axs[0, 1].set_title("Old Delta", pad=20)
+    axs[0, 1].matshow(old_delta)
+    axs[0, 1].set_xlabel(old_time)
+
+    axs[0, 2].set_title("New Delta", pad=20)
+    axs[0, 2].matshow(new_delta)
+    axs[0, 2].set_xlabel(new_time)
+
+    axs[1, 0].set_title("S1 AND S2", pad=20)
+    axs[1, 0].matshow(np.logical_and(struct1, struct2))
+
+    axs[2, 0].set_title("Expected", pad=20)
+    axs[2, 0].matshow(dilation3)
+
+    axs[1, 1].set_title("S1", pad=20)
+    axs[1, 1].matshow(struct1)
+
+    axs[1, 2].set_title("S2", pad=20)
+    axs[1, 2].matshow(struct2)
+
+    axs[2, 1].set_title("D1", pad=20)
+    axs[2, 1].matshow(dilation1)
+
+    axs[2, 2].set_title("D2", pad=20)
+    axs[2, 2].matshow(dilation2)
+
+    plt.show()
 
 def counter_example():
     shape = (4, 5)
@@ -169,16 +264,20 @@ def counter_example():
     )
 
 if __name__ == "__main__":
-    shape = (5, 6)
+    shape = (10, 10)
     entry = np.zeros(shape, dtype=int)
     entry[2, 2] = 1
-    entry[2, 3] = 1
+    entry[2, 6] = 1
+    entry[6, 4] = 1
+    entry[6, 5] = 1
+    entry[7, 4] = 1
+    entry[7, 5] = 1
     struct1 = ndimage.generate_binary_structure(2, 2)
     struct2 = ndimage.generate_binary_structure(2, 1)
     run_dilations(entry, struct1, struct2)
 
-    struct1 = np.array([[True, False, True], [False, False, False], [True, False, True]])
-    struct2 = np.array([[False, True, False], [True, True, True], [False, True, False]])
-    run_dilations(entry, struct1, struct2)
+    struct1 = np.array([[True, False, False], [True, True, False], [True, True, True]])
+    struct2 = np.array([[False, False, True], [False, True, True], [True, True, True]])
+    run_dilations2(entry, struct1, struct2)
 
 

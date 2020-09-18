@@ -11,15 +11,15 @@ vcomplement = np.vectorize(complement)
 
 class MatrixLattie():
     def __init__(self, shape):
-        """ Create a lattice for a matrix with dimensions
-            set by the pair of ints `shape`.
+        """Create a lattice for a matrix with dimensions
+        set by the pair of ints `shape`.
         """
         self.shape = shape
         self.bottom = np.zeros(shape, dtype=int)
         self.top = np.ones(shape, dtype=int)
 
     def __len__(self):
-        """ Returns the number of nodes in the lattice.
+        """Returns the number of nodes in the lattice.
         """
         return self.shape[0] * self.shape[1]
 
@@ -27,7 +27,7 @@ class MatrixLattie():
         return np.all(np.greater_equal(a, b))
 
     def lub(self, iterable):
-        """ Least Upper Bound of `iterable`.
+        """Least Upper Bound of `iterable`.
         """
         r = np.zeros(self.shape, dtype=int)
         for i in iterable:
@@ -38,7 +38,7 @@ class MatrixLattie():
         return np.logical_or(pair[0], pair[1]).astype(int)
 
     def glb(self, iterable):
-        """ Greatest Lower Bound of `iterable`.
+        """Greatest Lower Bound of `iterable`.
         """
         r = np.ones(self.shape, dtype=int)
         for i in iterable:
@@ -49,7 +49,7 @@ class MatrixLattie():
         return np.multiply(pair[0], pair[1])
 
     def imply(self, a, b):
-        """ Returns a imply b.
+        """Returns a imply b.
         """
         return vcomplement(b, a)
 
@@ -98,8 +98,8 @@ def partition_helper(lattice, functions, first, last, c, helper_cache, search_sp
         return result
 
 def delta5_plus(lattice, functions, image):
-    """ Calculate Delta* for a set of `dilation functions` over a `lattice` for an `image`
-        partitioning the set of functions and using a look-up table.
+    """Calculate Delta* for a set of `dilation functions` over a `lattice` for an `image`
+    partitioning the set of functions and using a look-up table.
     """
     n = len(functions)
     helper_cache = {}

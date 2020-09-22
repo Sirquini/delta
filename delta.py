@@ -768,7 +768,7 @@ def delta_n(lattice, space_functions, functions):
 # Delta functions for Lattice instances
 # ######################################
 
-def delta_plus(lattice: Lattice, functions):
+def delta_naive(lattice: Lattice, functions):
     """Calculates Delta+ for a set of `functions` over a `lattice`.
 
     Args:
@@ -780,6 +780,69 @@ def delta_plus(lattice: Lattice, functions):
         lattice.lub(apply_fns(functions, t)) for t in product(range(n), repeat=len(functions))
         if lattice.lattice[lattice.lub(t)][c] == 1
     ) for c in range(n)]
+
+def delta_plus(lattice: Lattice, functions):
+    """Calculates Delta+ for a set of `functions` over a `lattice`.
+
+    Args:
+      lattice: A Lattice instance.
+      functions: A list of space functions.
+    """
+    fn_len = len(functions)
+    if fn_len == 1:
+        return functions[0]
+    if fn_len == 2:
+        n = len(lattice)
+        return [lattice.glb(
+            lattice.lub(apply_fns(functions, t)) for t in product(range(n), repeat=len(functions))
+            if lattice.lattice[lattice.lub(t)][c] == 1
+        ) for c in range(n)]
+    return delta_plus(lattice, (delta_plus(lattice, functions[:2]), delta_plus(lattice, functions[2:])))
+
+def delta_plus_imply(lattice: Lattice, functions):
+    """Calculate Delta+ for a set of `functions` over a `lattice`.
+        
+    Similar to `delta_ast_partition`.
+
+    - No look-up table.
+    - With imply
+    - Only checks elements <= c
+
+    Args:
+      lattice: A Lattice instance.
+      functions: A list of space functions.
+    """
+    if len(functions) == 1:
+        return functions[0]
+    if len(functions) == 2:
+        n = len(lattice)
+        return [lattice.glb(
+            lattice.lub(apply_fns(functions, (i, lattice.imply(i, c)))) for i in range(n) if lattice.lattice[c][i] == 1
+        ) for c in range(n)]
+    return delta_plus_imply(lattice, (delta_plus_imply(lattice, functions[:2]), delta_plus_imply(lattice, functions[2:])))
+
+def delta_plus_jies(lattice: Lattice, functions, jie_s=None):
+    """Calculate Delta+ for a set of `functions` over a `lattice`.
+    
+    Similar to `delta_partition`.
+
+    This implementation takes advantage of the join irreducible
+    elements to reduce the number of operations.
+
+    Args:
+      lattice: A Lattice instance.
+      functions: A list of space functions.
+      jie_s: A list of Join-Irreducible elements, if `None` it generates such list.
+    """
+    if len(functions) == 1:
+        return functions[0]
+    if jie_s is None:
+        jie_s = lattice.join_irreducible_elements()
+    n = len(lattice)
+    result = [None for _ in range(n)]
+    for j in jie_s:
+        result[j] = lattice.glb(fn[j] for fn in functions)
+    return [lattice.lub(result[j] for j in jie_s if lattice.lattice[c][j] == 1) if v is None else v for c, v in enumerate(result)]
 
 # ######################################
 

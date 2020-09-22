@@ -1040,7 +1040,8 @@ class Delta(Enum):
     AST_V4 = 5
     AST_LATEST = 6
     AST_OVERLAP = 7
-    N = 8
+    PLUS = 8
+    N = 9
     OTHER = 10
 
 def run_test_case(fn, lattice, test_functions):

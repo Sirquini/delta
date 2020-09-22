@@ -5,7 +5,7 @@ import json
 from time import perf_counter
 from itertools import product, combinations, permutations
 
-from lattice import Lattice, powerset_lattice, delta_foo, delta_ast_partition
+from lattice import Lattice, powerset_lattice, delta_foo, delta_ast_partition, delta_partition
 
 # #######################################
 # Experiments mainly over lattices,
@@ -68,8 +68,13 @@ def write_test_results_csv(name, results):
 # Utility functions for running tests.
 # #######################################
 
-from delta import TestResults, Delta, run_test_case, delta_n, random_space_function, all_space_functions
+from delta import TestResults, Delta, run_test_case, delta_n, random_space_function, all_space_functions, delta_plus_jies 
 from generation import progress_bar
+
+class DeltaTest:
+    def __init__(self, name, fn, skip_times=False):
+        self.fn = fn
+        self.test_results = TestResults(name, skip_times)
 
 # #######################################
 
@@ -177,7 +182,8 @@ def run(l, verbose = False, test_functions = None, n_tests = 100, n_functions = 
     # Used for showing the aggregate results at the end
     delta_results = {
         Delta.FOO: TestResults("DeltaGen+"),
-        Delta.AST_LATEST: TestResults("DeltaPart3+"),
+        Delta.AST_LATEST: TestResults("DeltaJIEs"),
+        Delta.OTHER: TestResults("DeltaPlus"),
         Delta.N: TestResults("Brute-force")
     }
 
@@ -206,6 +212,12 @@ def run(l, verbose = False, test_functions = None, n_tests = 100, n_functions = 
         if verbose:
             print("{}: {}".format(delta_results[Delta.AST_LATEST].name, repr(delta_ast_part_result)))
             print("-- Time: {}\n".format(fn_time))
+        
+        fn_time, delta_plus_result = run_test_case(delta_plus_jies, lattice, sample_functions)
+        delta_results[Delta.OTHER].update_times(fn_time, n)
+        if verbose:
+            print("{}: {}".format(delta_results[Delta.OTHER].name, repr(delta_plus_result)))
+            print("-- Time: {}\n".format(fn_time))
 
         fn_time = perf_counter()
         delta_max_result = delta_n(lattice.lattice, space_functions, sample_functions)
@@ -222,6 +234,8 @@ def run(l, verbose = False, test_functions = None, n_tests = 100, n_functions = 
             delta_results[Delta.FOO].errors.append((sample_functions, delta_foo_result, delta_max_result))
         if delta_ast_part_result != delta_max_result:
             delta_results[Delta.AST_LATEST].errors.append((sample_functions, delta_ast_part_result, delta_max_result))
+        if delta_plus_result != delta_max_result:
+            delta_results[Delta.AST_LATEST].errors.append((sample_functions, delta_plus_result, delta_max_result))
 
     print("Number of iterations:", n)
 
@@ -271,6 +285,43 @@ def run_full_tests(size_limit=0):
         print("================================================================\n")
     eprint(" Done.")
     write_test_results_csv("results-{}.csv".format(start_time), results)
+
+def run_deltas(l: Lattice, deltas, verbose = False, test_functions = None, n_tests = 10, n_functions = 2, brute_force=False):
+    """Runs all the `deltas` algorithms against a given lattice and
+    `test_functions`, either random or explicit, similar to the run command,
+    and present the results.
+
+    Args:
+        l:
+            Matrix representing the lattice to test against.
+        deltas:
+            The list of DeltaTests functions to time and test.
+        verbose:
+            - If `True`, show each test case, the individual results, and a
+            summary of failing test cases.
+            - If `False` (default), only show failing test cases.
+        test_functions:
+            The list of space-functions to test against. By default, if no 
+            `test_functions` are provided, generates random test_functions.
+        n_tests:
+            If `test_functions` is None, indicates the number of test to run
+            with `n_functions` random test functions.
+        n_functions:
+            If `test_funtions` is None, indicates how many random test
+            functions to use per test-case.
+        brute_force:
+            - If `True`, generates all the possible space functions and runs
+            the brute-force delta calculation to compare. The default is 
+            `False` since we usually don't want to use brute-force with big
+            lattices.
+
+    Returns:
+        A dictionary with the acumulated results, including timings and
+        failures (if any).
+    """
+    # NOTE: This function is NOT finished. It is meant to be a generic alternative
+    # to using `run` and `run_powerset`.
+    pass
 
 def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests = 10, n_functions = 2, brute_force=False):
     """Runs all the delta algorithms against a powerset lattice and
@@ -334,11 +385,11 @@ def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests 
             print("[E] Aborting due to previous error!")
             return {}
 
-    pb_max = 2*n # used for the progress_bar
+    pb_max = 4*n # used for the progress_bar
     pb_c = 0 # current test index
     func_gen_time = 0
     if brute_force:
-        pb_max = 3*n
+        pb_max += n
 
         func_gen_time = perf_counter()
         space_functions = all_space_functions(lattice)
@@ -354,6 +405,8 @@ def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests 
 
     # Used for showing the aggregate results at the end
     delta_results = {
+        Delta.AST: TestResults("DeltaJIe"),
+        Delta.PLUS: TestResults("DeltaPlus"),
         Delta.FOO: TestResults("DeltaGen+"),
         Delta.AST_LATEST: TestResults("DeltaPart3+")
     }
@@ -361,9 +414,9 @@ def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests 
     if brute_force:
         delta_results[Delta.N] = TestResults("Brute-force")
 
-    deltas_are_equal = TestResults("assert_equal(DeltaGen+, DeltaPart3+)", True)
+    deltas_are_equal = TestResults("assert_equal(DeltaPlus, DeltaJIe)", True)
 
-    progress_bar(pb_c, pb_max, 50, "DeltaGen+")
+    progress_bar(pb_c, pb_max, 50, "DeltaPlus")
     for _ in range(n):
         # Get some space functions at random or use given ones
         if test_functions is None:
@@ -375,6 +428,22 @@ def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests 
             for fn in sample_functions:
                 print(fn)
             print("___________________________________\n")
+
+        fn_time, delta_assoc_result = run_test_case(delta_plus_jies, lattice, sample_functions)
+        delta_results[Delta.PLUS].update_times(fn_time, n)
+        if verbose:
+            print("{}: {}".format(delta_results[Delta.PLUS].name, repr(delta_assoc_result)))
+            print("-- Time: {}\n".format(fn_time))
+        pb_c += 1
+        progress_bar(pb_c, pb_max, 50, "DeltaJIe")
+
+        fn_time, delta_ast_result = run_test_case(delta_partition, lattice, sample_functions)
+        delta_results[Delta.AST].update_times(fn_time, n)
+        if verbose:
+            print("{}: {}".format(delta_results[Delta.AST].name, repr(delta_ast_result)))
+            print("-- Time: {}\n".format(fn_time))
+        pb_c += 1
+        progress_bar(pb_c, pb_max, 50, "DeltaGen+")
 
         fn_time, delta_foo_result = run_test_case(delta_foo, lattice, sample_functions)
         delta_results[Delta.FOO].update_times(fn_time, n)
@@ -390,9 +459,9 @@ def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests 
             print("{}: {}".format(delta_results[Delta.AST_LATEST].name, repr(delta_ast_partition_result)))
             print("-- Time: {}\n".format(fn_time))
         pb_c += 1
-        progress_bar(pb_c, pb_max, 50, "BruteForce")
 
         if brute_force:
+            progress_bar(pb_c, pb_max, 50, "BruteForce")
             fn_time = perf_counter()
             delta_max_result = delta_n(lattice.lattice, space_functions, sample_functions)
             fn_time = perf_counter() - fn_time
@@ -403,10 +472,10 @@ def run_powerset(exponent = 10, verbose = False, test_functions = None, n_tests 
                 print("-- Without preprocessing:", fn_time + func_gen_time)
                 print("----------------------------------------------------------------\n")
             pb_c += 1
-            progress_bar(pb_c, pb_max, 50, "DeltaGen+")
+        progress_bar(pb_c, pb_max, 50, "DeltaPlus")
 
-        if delta_foo_result != delta_ast_partition_result:
-            deltas_are_equal.errors.append((sample_functions, delta_foo_result, delta_ast_partition_result))
+        if delta_assoc_result != delta_ast_result:
+            deltas_are_equal.errors.append((sample_functions, delta_assoc_result, delta_ast_result))
     
     eprint(" Done.")
     print("Number of iterations:", n)
@@ -435,7 +504,7 @@ def run_full_powerset_tests():
         print("* Using lattice `Powerset_{}` ({} nodes)".format(exponent, nodes))
         for i in [4, 8, 12,16, 24, 28, 32]: # TODO: Restore this to [4, 8, 12, 16]. Use only [4] for 4 and 5. Since Delta+ is O(mn^m), where m=n_functions 
             print("\nTest Functions:", i)
-            result = run_powerset(exponent, n_tests=10, n_functions=i, brute_force=nodes<=32)
+            result = run_powerset(exponent, n_tests=10, n_functions=i, brute_force=nodes<32)
             result["lattice"] = "Powerset_{}".format(exponent)
             result["nodes"] = nodes
             result["functions"] = i
@@ -581,7 +650,7 @@ def run_arbitrary_lattices(sizes, fixed_lattice=False):
 
 if __name__ == "__main__":
     # run_full_tests(size_limit=10)
-    # run_full_powerset_tests()
+    run_full_powerset_tests()
     # run_arbitrary_lattices([4, 5, 6, 7, 8, 9, 10])
-    run_arbitrary_lattices([4, 8, 12, 16, 24, 28, 32], fixed_lattice=True)
+    # run_arbitrary_lattices([4, 8, 12, 16, 24, 28, 32], fixed_lattice=True)
 

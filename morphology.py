@@ -122,43 +122,26 @@ def delta5_plus(lattice, functions, image):
     search_space = downset(image)
     return partition_helper(lattice, functions, 0, n, image, helper_cache, search_space)
 
-def partition_helper2(lattice, functions, first, last, c, helper_cache):
-    cached_result = helper_cache.get((tuple(map(tuple, c)), first, last-1))
-    if cached_result is not None:
-        return cached_result
-    # No need to compute for the bottom
-    if np.array_equal(lattice.bottom, c):
-        return lattice.bottom
-    fn_num = last - first
-    if fn_num == 1:
-        return ndimage.binary_dilation(c, structure=functions[first]).astype(c.dtype)
-    else:
-        mid_point = first + fn_num // 2
-        result = lattice.glb(lattice.lub((partition_helper2(lattice, functions, first, mid_point, a, helper_cache), partition_helper2(lattice, functions, mid_point, last, lattice.imply(a, c), helper_cache))) for a in downset(c))
-        helper_cache[(tuple(map(tuple, c)), first, last-1)] = result
-        return result
+def apply_dilation(structure, image):
+    """Wrapper for `ndimage.binary_dilation`."""
+    return ndimage.binary_dilation(image, structure=structure).astype(image.dtype)
 
-def delta_partition(lattice, functions, image):
-    """ Calculate Delta* for a set of `dilation functions` over a `lattice` for an `image`
-    partitioning the set of functions and using a look-up table.
+def delta_plus_jies(lattice, functions, image):
+    """Calculate Delta+ for a set of dilation `functions` over a `lattice` for an `image`.
+    
+    Similar to `delta_partition`.
 
-        
     This implementation takes advantage of the join irreducible
-    elements to reduce the number of recursive calls.
+    elements to reduce the number of operations.
 
     Args:
-        lattice: A Lattice instance.
-        functions: A list of space-functions.
-        image: The image to apply the resulting space-function to.
+      lattice: A Lattice instance.
+      functions: A list of space functions.
     """
-    n = len(functions)
-    helper_cache = {}
+    if len(functions) == 1:
+        return apply_dilation(functions[0], image)
     jie_s = lattice.join_irreducible_elements()
-    # Only call the recursive function for the join-irreducible elements
-    # needed to calculate Delta for the given image.
-    # Only return the delta function applied to the image,
-    # since the Lattice space can be exponentially huge.
-    return lattice.lub(partition_helper2(lattice, functions, 0, n, ji, helper_cache) for ji in jie_s if lattice.entails(image, ji))
+    return lattice.lub(lattice.glb(apply_dilation(fn, ji) for fn in functions) for ji in jie_s if lattice.entails(image, ji))
 
 def run_dilations(entry, struct1, struct2):
     shape = entry.shape
@@ -174,7 +157,7 @@ def run_dilations(entry, struct1, struct2):
     print("Dilation of intersecting s1, s2:")
     print(dilation3)
     print("Delta result:")
-    print(delta5_plus(lattice, (struct1, struct2), entry))
+    print(delta_plus_jies(lattice, (struct1, struct2), entry))
 
 def run_dilations2(entry, struct1, struct2):
     import matplotlib.pyplot as plt
@@ -197,7 +180,7 @@ def run_dilations2(entry, struct1, struct2):
     print(old_delta)
     print("New Delta result:")
     new_time = perf_counter()
-    new_delta = delta_partition(l, (struct1, struct2), entry)
+    new_delta = delta_plus_jies(l, (struct1, struct2), entry)
     new_time = perf_counter() - new_time
     print(new_delta)
 
@@ -207,11 +190,9 @@ def run_dilations2(entry, struct1, struct2):
 
     axs[0, 1].set_title("Old Delta", pad=20)
     axs[0, 1].matshow(old_delta)
-    axs[0, 1].set_xlabel(old_time)
 
     axs[0, 2].set_title("New Delta", pad=20)
     axs[0, 2].matshow(new_delta)
-    axs[0, 2].set_xlabel(new_time)
 
     axs[1, 0].set_title("S1 AND S2", pad=20)
     axs[1, 0].matshow(np.logical_and(struct1, struct2))
@@ -227,9 +208,11 @@ def run_dilations2(entry, struct1, struct2):
 
     axs[2, 1].set_title("D1", pad=20)
     axs[2, 1].matshow(dilation1)
+    axs[2, 1].set_xlabel(old_time)
 
     axs[2, 2].set_title("D2", pad=20)
     axs[2, 2].matshow(dilation2)
+    axs[2, 2].set_xlabel(new_time)
 
     plt.show()
 

@@ -44,12 +44,12 @@ class Lattice:
         # to short-circuit and not generate all the pairs if
         # the lattice is not valid.
         lt = combinations(range(N),2)
-        return all(self.lubs[a][b] != -1 for (a, b) in lt)
+        return all(self.lattice[self.lubs[a][b]][a] == 1 and self.lattice[self.lubs[a][b]][b] == 1 for (a, b) in lt)
     
     def is_modular(self):
         """Returns True if the lattice is modular, False otherwise.
 
-        A lattice is modular if it satisfies for all elements `a`, `b`, and `c`:
+        A lattice is modular if, for all elements `a`, `b`, and `c`, it satisfies:
         
         + If  `a` >= `c`, then `a` glb (`b` lub `c`) = (`a` glb `b`) lub `c`.
 

@@ -24,8 +24,8 @@ class LatticeCollection(list):
         else:
             layer = {
                 0: [],
-                1: [Poset.from_covers([[]])],
-                2: [Poset.from_covers([[],[0]])],
+                1: [Poset.from_children([[]])],
+                2: [Poset.from_children([[],[0]])],
             }[len(self)]
         self.append(layer)
     

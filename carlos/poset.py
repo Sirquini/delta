@@ -1,9 +1,53 @@
+# pip3 install atomicwrites
+from atomicwrites import atomic_write
+from ast import literal_eval
+from collections import defaultdict
+#import Poset
+
 from cached_property import cached_property
 import pyhash
 import numpy as np
 from collections import deque
-from itertools import product, groupby
+from itertools import product, groupby, chain
 from functools import reduce
+import time, sys
+
+
+
+def product_list(*iterables, repeat=1, out=None):
+    'same as itertools.product, but mutates the output instead of making tuples'
+    dims = [list(it) for it in iterables] * repeat
+    n = len(dims)
+    if out is not None:
+        assert len(out)==n, f'Incompatible output shape'
+    out = [None]*n if out is None else out
+    def backtrack(i):
+        if i==n:
+            yield out
+        else:
+            for x in dims[i]:
+                out[i] = x
+                yield from backtrack(i+1)
+    yield from backtrack(0)
+
+
+class Outfile:
+    def __init__(self, outfile=None):
+        self.outfile = outfile
+        
+    def __enter__(self):
+        if self.outfile is not None:
+            self.initial_stdout = sys.stdout
+            sys.stdout = open(self.outfile, 'a')
+    
+    def __exit__(self, *args):
+        if self.outfile is not None:
+            sys.stdout.close()
+            sys.stdout = self.initial_stdout
+
+
+class PosetException(Exception):
+    pass
 
 
 class Poset:
@@ -38,7 +82,7 @@ class Poset:
         several runs unless PYTHONHASHSEED is set prior to execution.
     
     Example:
-        V = Poset.from_covers([[],[0],[0],[1,2]])
+        V = Poset.from_children([[],[0],[0],[1,2]])
         V.show()
         print(V.num_f_lub)
             for f in V.iter_f_lub_bruteforce():
@@ -120,9 +164,10 @@ class Poset:
     def throw(self, message):
         print(message)
         self.show()
+        print('Covers:', self)
         print('Relation matrix:')
         print(self.leq.astype(int))
-        raise Exception(message)
+        raise PosetException(message)
      
     @cached_property
     def children(self):
@@ -148,10 +193,10 @@ class Poset:
         for ch in range(n):
             for pa in parents[ch]:
                 children[pa].append(ch)
-        return cls.from_covers(children)
+        return cls.from_children(children)
     
     @classmethod
-    def from_covers(cls, children):
+    def from_children(cls, children):
         n = len(children)
         child = np.zeros((n,n), dtype=bool)
         for pa in range(n):
@@ -165,7 +210,7 @@ class Poset:
         poset = cls(leq)
         poset.is_partial_order(leq) or poset.throw('Not a partial order')
         poset.__dict__['child'] = child
-        poset.__dict__['dist'] = child
+        poset.__dict__['dist'] = dist
         return poset
     
     @classmethod
@@ -187,7 +232,7 @@ class Poset:
     @classmethod
     def child_to_dist(cls, child):
         'Compute all pairs shortest distances using Floyd-Warshall algorithm'
-        dist = child.astype(int)
+        dist = child.astype(np.uint64)
         n = len(dist)
         dist[dist==0] = n
         dist[np.diag_indices_from(dist)] = 0
@@ -256,6 +301,11 @@ class Poset:
     
     # Lattice methods
     
+    def assert_lattice(self):
+        if self.n > 0:
+            self.lub
+            self.bottom
+    
     @cached_property
     def lub(self):
         n = self.n
@@ -292,6 +342,16 @@ class Poset:
         nleq = self.leq.sum(axis=0)
         zeros = [i for i in range(n) if nleq[i]==1]
         zeros or self.throw(f'No bottom found')
+        len(zeros)==1 or self.throw(f'Multiple bottoms found: {zeros}')
+        return zeros[0]
+    
+    @cached_property
+    def top(self):
+        '''top element of the Poset. Throws if not present'''
+        n = self.n
+        nleq = self.leq.sum(axis=0)
+        zeros = [i for i in range(n) if nleq[i]==n]
+        zeros or self.throw(f'No top found')
         len(zeros)==1 or self.throw(f'Multiple bottoms found: {zeros}')
         return zeros[0]
     
@@ -367,7 +427,7 @@ class Poset:
         Bh = other.hash_elems
         
         matches = [[j for j in range(n) if Ah[i]==Bh[j]] for i in range(n)]
-        remaining = product(*matches)
+        remaining = product_list(*matches)
         
         # Find isomorphism among remaining functions
         A = self.leq
@@ -446,7 +506,7 @@ class Poset:
         fb = self.forbidden_pairs
         vis = set()
         h = self.hash_elems
-        for i,j in product(range(n), repeat=2):
+        for i,j in product_list(range(n), repeat=2):
             if not fb[i,j] and not leq[i,j] and not (h[i],h[j]) in vis:
                 vis.add((h[i],h[j]))
                 new_leq = leq + np.matmul(leq[:, i:i+1], leq[j:j+1, :])
@@ -464,7 +524,7 @@ class Poset:
         fb = self.forbidden_pairs
         vis = set() # Don't repeat isomorphical connections
         h = self.hash_elems
-        for i,j in product(range(n), repeat=2):
+        for i,j in product_list(range(n), repeat=2):
             if not fb[i,j] and not (h[i],h[j]) in vis:
                 vis.add((h[i],h[j]))
                 out = new_leq.copy()
@@ -475,23 +535,40 @@ class Poset:
                 yield self.__class__(out)
         return
     
+    @classmethod
+    def iter_all_latices(cls, max_size):
+        q = deque([cls.from_children(x) for x in [[],[[]],[[],[0]]]])
+        vis = set()
+        while q:
+            U = q.popleft()
+            yield U.canonical
+            it = U.iter_add_node() if U.n < max_size else iter([])
+            for V in chain(U.iter_add_edge(), it):
+                if V not in vis:
+                    vis.add(V)
+                    q.append(V)
     
-    # Methods for endomorphisms (functions self->self)
+    @classmethod
+    def all_latices(cls, max_size):
+        return list(cls.iter_all_latices(max_size))
+    
+    
+    # Methods for all endomorphisms
     
     def iter_f_all(self):
         'all endomorphisms'
-        return product(range(self.n), repeat=self.n)
+        return product_list(range(self.n), repeat=self.n)
     
     @cached_property
     def num_f_all(self):
         return self.n**self.n
         
     def iter_f_all_bottom(self):
-        'all endomorphisms f with f(bottom)=bottom'
+        'all endomorphisms f with f[bottom]=bottom'
         n = self.n
         if n>0:
             options = [range(n) if i!=self.bottom else [i] for i in range(n)]
-            for f in product(*options):
+            for f in product_list(*options):
                 yield f
         return
     
@@ -499,7 +576,164 @@ class Poset:
     def num_f_all_bottom(self):
         return self.n**(self.n-1)
     
-    def f_is_lub(self, f, domain=None):
+    
+    # Methods for all monotonic endomorphisms
+    
+    def f_is_monotone(self, f, domain=None):
+        'check if f is monotone over domain'
+        n = self.n
+        domain = range(n) if domain is None else domain
+        leq = self.leq
+        for i in domain:
+            for j in domain:
+                if leq[i,j] and not leq[f[i],f[j]]:
+                    return False
+        return True
+
+    def iter_f_monotone_bruteforce(self):
+        'all monotone functions'
+        for f in self.iter_f_all():
+            if self.f_is_monotone(f):
+                yield f
+        return
+
+    def iter_f_monotone_bottom_bruteforce(self):
+        'all monotone functions with f[bottom]=bottom'
+        for f in self.iter_f_all_bottom():
+            if self.f_is_monotone(f):
+                yield f
+        return
+
+    def iter_f_monotone(self):
+        'all monotone functions'
+        f = [None]*self.n
+        yield from self.iter_f_monotone_restricted(_f=f)
+    
+    def iter_f_lub_bottom_bruteforce(self):
+        'all space functions. Throws if no bottom'
+        for f in self.iter_f_monotone_bottom():
+            if self.f_is_lub(f):
+                yield f
+        return
+    
+        
+    def iter_f_monotone_restricted(self, domain=None, _f=None):
+        'generate all monotone functions f : domain -> self, padding non-domain with None'
+        n = self.n
+        leq = self.leq
+        geq_list = [[j for j in range(n) if leq[i,j]] for i in range(n)]
+        f = [None for i in range(n)] if _f is None else _f
+        topo, children = self._toposort_children(domain)
+        yield from self._iter_f_monotone_restricted(f, topo, children, geq_list)
+    
+    def _iter_f_monotone_restricted(self, f, topo, children, geq_list):
+        n = self.n
+        m = len(topo)
+        lub = self.lub
+        _lub_f = (lambda acum,b: lub[acum,f[b]])
+        lub_f = lambda elems: reduce(_lub_f, elems, self.bottom)
+        def backtrack(i):
+            'f[topo[j]] is fixed for all j<i. Backtrack f[topo[k]] for all k>=i, k<m'
+            if i==m:
+                yield f
+            else:
+                for k in geq_list[lub_f(children[i])]:
+                    f[topo[i]] = k
+                    yield from backtrack(i+1)
+        yield from backtrack(0)
+    
+    def _toposort_children(self, domain):
+        'Compute a toposort for domain and the children lists filtered for domain'
+        'j in out.children[i] iff j in out.topo and j is children of out.topo[i]'
+        n = self.n
+        D = range(n) if domain is None else domain
+        topo = [i for i in self.toposort if i in D]
+        sub = self.subgraph(topo)
+        children = [[topo[j] for j in l] for l in sub.children]
+        return topo, children
+    
+
+    def iter_f_monotone_bottom(self):
+        'all monotone functions with f[bottom]=bottom'
+        if not self.n:
+            return
+        f = [None]*self.n
+        f[self.bottom] = self.bottom
+        domain = [i for i in range(self.n) if i!=self.bottom]
+        yield from self.iter_f_monotone_restricted(domain=domain, _f=f)
+    
+    
+    # Methods for monotonic endomorphisms over irreducibles
+        
+    @cached_property
+    def irreducible_components(self):
+        'components of join irreducibles in toposort order and children lists for each component'
+        n = self.n
+        if n<=1: # no join irreducibles at all
+            return (0, [], [])
+        irr = self.irreducibles
+        sub = self.subgraph(irr)
+        subcomps = sub.independent_components
+        m = len(subcomps)
+        irrcomps = [[irr[j] for j in subcomps[i]] for i in range(m)]
+        m_topo, m_children = zip(*(self._toposort_children(irrcomps[i]) for i in range(m)))
+        return m, m_topo, m_children
+        
+    def _interpolate_funcs(self, funcs, domain, iter_bot=False):
+        'extend each f in funcs outside domain using f[j]=lub(f[i] if i<=j and i in domain)'
+        n = self.n
+        lub = self.lub
+        leq = self.leq
+        bot = self.bottom
+        no_domain = [i for i in range(n) if i not in domain]
+        dom_leq = [[i for i in domain if leq[i,j]] for j in range(n)]
+        lub_f = (lambda a,b: lub[a,b])
+        for f in funcs:
+            for j in no_domain:
+                f[j] = reduce(lub_f, (f[x] for x in dom_leq[j]), bot)
+            yield f
+    
+    def iter_f_irreducibles_monotone_bottom(self):
+        'all functions given by f[non_irr]=lub(f[irreducibles] below non_irr)'
+        if self.n == 0:
+            return
+        n = self.n
+        leq = self.leq
+        geq_list = [[j for j in range(n) if leq[i,j]] for i in range(n)]
+        m, m_topo, m_children = self.irreducible_components
+        f = [None for i in range(n)]
+        def backtrack(i):
+            if i==m:
+                yield f
+            else:
+                for _ in self._iter_f_monotone_restricted(f, m_topo[i], m_children[i], geq_list):
+                    yield from backtrack(i+1)
+        funcs = backtrack(0)
+        yield from self._interpolate_funcs(funcs, self.irreducibles)
+        
+    
+    def iter_f_irreducibles_monotone(self):
+        'all functions given by f[non_irr]=lub(f[irreducibles] below non_irr) and'
+        'f[bottom] = any below or equal to glb(f[irreducibles])'
+        n = self.n
+        if n==0:
+            return
+        glb = self.glb
+        _glb_f = (lambda acum,b: glb[acum,f[b]])
+        glb_f = lambda elems: reduce(_glb_f, elems, self.top)
+        leq = self.leq
+        below = [[i for i in range(n) if leq[i,j]] for j in range(n)]
+        bottom = self.bottom
+        irreducibles = self.irreducibles
+        for f in self.iter_f_irreducibles_monotone_bottom():
+            for i in below[glb_f(irreducibles)]:
+                f[bottom] = i
+                yield f
+    
+    
+    # Methods for endomorphisms that preserve lub
+    
+    def f_is_lub_bottom(self, f, domain=None):
         'check if f preserves lub and f[bottom] is bottom. Throws if no bottom'
         n = self.n
         if n==0 or (domain is not None and len(domain)<=1):
@@ -507,6 +741,11 @@ class Poset:
         bot = self.bottom
         if f[bot] != bot or (domain is not None and bot not in domain):
             return False
+        return self.f_is_lub(f, domain)
+    
+    def f_is_lub(self, f, domain=None):
+        'check if f preserves lub'
+        n = self.n
         domain = range(n) if domain is None else domain
         lub = self.lub
         for i in domain:
@@ -516,55 +755,53 @@ class Poset:
         return True
 
     def iter_f_lub_bruteforce(self):
-        'all join endomorphisms. Throws if no bottom.'
-        for f in self.iter_f_all_bottom():
+        'all join endomorphisms'
+        for f in self.iter_f_monotone():
             if self.f_is_lub(f):
                 yield f
         return
+                
+    def iter_f_lub(self):
+        'all lub preserving functions'
+        it = self.iter_f_irreducibles_monotone()
+        if self.is_distributive:
+            yield from it
+        else:
+            for f in it:
+                if self.f_is_lub(f):
+                    yield f
+    
+    def iter_f_lub_bottom(self):
+        'all lub preserving functions with f[bottom]=bottom'
+        it = self.iter_f_irreducibles_monotone_bottom()
+        if self.is_distributive:
+            yield from it
+        else:
+            for f in it:
+                if self.f_is_lub(f):
+                    yield f
+    
+    
+    @cached_property
+    def num_f_lub(self):
+        return self.count_f_lub_bruteforce()
     
     def count_f_lub_bruteforce(self):
-        return sum(1 for f in self.iter_f_lub_bruteforce())
-
-    def f_is_monotone(self, f, domain=None):
-        n = self.n
-        domain = range(n) if domain is None else domain
-        leq = self.leq
-        for i in domain:
-            for j in domain:
-                if leq[i,j] and not leq[f[i],f[j]]:
-                    return False
-        return True
+        return sum(1 for f in self.iter_f_lub())
     
-    def iter_f_monotone_restricted(self, domain=None, _f=None):
-        'generate all monotone functions f : domain -> self, padding non-domain with None'
-        D = range(n) if domain is None else domain
-        n = self.n
-        sub = self.subgraph(D)
-        m = sub.n
-        cov = sub.children
-        inv = [None for i in range(n)]
-        for i in range(m):
-            inv[D[i]] = i
-        topo = [inv[i] for i in self.toposort if i in D]
-        leq = self.leq
-        geq_list = [[j for j in range(n) if leq[i,j]] for i in range(n)]
-        lub = self.lub
-        f = [None for i in range(n)] if _f is None else _f
-        def backtrack(i):
-            'f[D[topo[j]]] is fixed for all j<i. Backtrack f[D[topo[k]]] for all k>=i, k<m'
-            if i==m:
-                yield f
-            else:
-                if not cov[topo[i]]:
-                    options = range(n)
-                else:
-                    f_cov = (f[D[j]] for j in cov[topo[i]])
-                    cov_lub = reduce((lambda a,b: lub[a,b]), f_cov)
-                    options = geq_list[cov_lub]
-                for k in options:
-                    f[D[topo[i]]] = k
-                    yield from backtrack(i+1)
-        yield from backtrack(0)
+    @cached_property
+    def num_f_lub_bottom(self):
+        return self.count_f_lub_bottom()
+    
+    def count_f_lub_bottom(self):
+        if self.is_distributive:
+            num = self.count_f_lub_bottom_distributive()
+        else:
+            num = self.count_f_lub_bottom_bruteforce()
+        return num
+    
+    def count_f_lub_bottom_bruteforce(self):
+        return sum(1 for f in self.iter_f_lub_bottom())
     
     
     # Optimizations for distributive lattices
@@ -583,73 +820,307 @@ class Poset:
             diff = glb[i,lub] != lub[np.ix_(glb[i,:], glb[i,:])]
             if diff.any():
                 j, k = next(zip(*np.where(diff)))
-                msg = f'Non distributive lattice: ' +\
-                f'{i} glb ({j} lub {k}) = {i} glb {lub[j,k]} = ' +\
-                f'{glb[i,lub[j,k]]} != {lub[glb[i,j],glb[i,k]]} = ' +\
-                f'{glb[i,j]} lub {glb[i,k]} = ({i} glb {j}) lub ({i} glb {k})'
-                return msg
+                return (
+                    f'Non distributive lattice:\n'
+                    f'{i} glb ({j} lub {k}) = {i} glb {lub[j,k]} = '
+                    f'{glb[i,lub[j,k]]} != {lub[glb[i,j],glb[i,k]]} = '
+                    f'{glb[i,j]} lub {glb[i,k]} = ({i} glb {j}) lub ({i} glb {k})'
+                )
         return None
     
     def assert_distributive(self):
         self.is_distributive or self.throw(self._distributive_error)
     
-    def count_f_lub_distributive_v1(self):
-        return sum(1 for f in self.iter_f_lub_distributive_v1())
-    
-    def iter_f_lub_distributive_v1(self):
+    def iter_f_lub_bottom_distributive(self):
         'generate and interpolate all monotone functions over irreducibles'
         self.assert_distributive()
-        if not self.n:
-            return
-        irr = self.irreducibles
-        funcs = self.iter_f_monotone_restricted(irr)
-        yield from self._interpolate_funcs(funcs, irr)
-    
-    def _interpolate_funcs(self, funcs, domain):
-        'extend each f in funcs outside domain using f[j]=lub(i if i<=j and i in domain)'
-        n = self.n
-        lub = self.lub
-        leq = self.leq
-        bot = self.bottom
-        no_domain = [i for i in range(n) if i not in domain]
-        dom_leq = [[i for i in domain if leq[i,j]] for j in range(n)]
-        lub_f = (lambda a,b: lub[a,b])
-        for f in funcs:
-            for j in no_domain:
-                f[j] = reduce(lub_f, (f[x] for x in dom_leq[j]), bot)
-            yield f
-    
-    def iter_f_lub_distributive_v2(self):
-        'same as _v1 but treating different irreducible components separately'
-        if not self.n:
-            return
-        f, aux = self._aux_iter_f_lub_distributive_v2()
-        funcs = product(*aux)
-        yield from self._interpolate_funcs(irr, funcs)
-        
-    def _aux_iter_f_lub_distributive_v2(self):
-        'treat irreducibles components separately'
+        yield from self.iter_f_irreducibles_monotone_bottom()
+
+    def count_f_lub_bottom_distributive(self):
         self.assert_distributive()
-        n = self.n
-        irr = self.irreducibles
-        sub = self.subgraph(irr)
-        subcomps = sub.independent_components
-        irrcomps = [[irr[i] for i in comp] for comp in subcomps]
-        f = [None for i in range(n)]
-        partial = lambda D: self.iter_f_monotone_restricted(D, _f=f)
-        return f, [partial(domain) for domain in irrcomps]
-    
-    def count_f_lub_distributive_v2(self):
-        if not self.n:
+        if self.n == 0:
             return 0
-        f, partials = self._aux_iter_f_lub_distributive_v2()
-        independent = [sum(1 for _ in gen) for gen in partials]
-        return reduce(lambda a,b: a*b, independent, 1)
+        n = self.n
+        leq = self.leq
+        geq_list = [[j for j in range(n) if leq[i,j]] for i in range(n)]
+        m, m_topo, m_children = self.irreducible_components
+        f = [None for i in range(n)]
+        def num(i):
+            'num of monotone functions restricted to domain k_topo[i]'
+            it = self._iter_f_monotone_restricted(f, m_topo[i], m_children[i], geq_list)
+            return sum(1 for _ in it)
+        k_independent = [num(k) for k in range(m)]
+        return reduce(lambda a,b: a*b, k_independent, 1)
     
+
+    # Methods related with entropy
+
     @cached_property
-    def num_f_lub(self):
-        if self.n >= 4 and self.is_distributive:
-            num = self.count_f_lub_distributive_v2()
+    def num_lt(self):
+        return self.num_leq - self.n
+    @cached_property
+    def num_leq(self):
+        return self.leq.sum()
+    @cached_property
+    def num_child(self):
+        return self.child.sum()
+    @cached_property
+    def num_incomparable(self):
+        cmp = self.leq | self.leq.T
+        return (~cmp).sum() // 2
+    
+    
+    # Testing methods
+    
+    def _test_iters_diff(self, it1, it2):
+        'Compute set1 = set(it1)-set(it2) and set2 = set(it2)-set(it1)'
+        'Assumes that the iterators do not repeat elements'
+        set1 = set()
+        set2 = set()
+        for x,y in zip(it1, it2):
+            if x != y:
+                if x in set2:
+                    set2.discard(x)
+                else:
+                    set1.add(x)
+                if y in set1:
+                    set1.discard(y)
+                else:
+                    set2.add(y)
+        for x in it1:
+            set1.add(x)
+        for y in it2:
+            set2.add(y)
+        return set1, set2
+    
+    def _test_iters(self, it1, it2):
+        'Check if two iterators yield the same values'
+        def timed(it, key):
+            cnt = total = 0
+            t = time.time()
+            for i in it:
+                total += time.time()-t
+                yield i
+                t = time.time()
+                cnt += 1
+            times[key] = total
+            count[key] = cnt
+        times = {}
+        count = {}
+        it1 = timed(it1, 0)
+        it2 = timed(it2, 1)
+        set1, set2 = self._test_iters_diff(it1, it2)
+        same = not set1 and not set2
+        reason = not same and (
+            f'Iterators are different:\n'
+            f'Found by 1 not by 2: {set1}\n'
+            f'Found by 2 not by 1: {set2}'
+        )
+        self._test_summary(times, count, same, reason)
+    
+    def _test_counts(self, f1, f2):
+        times = {}
+        count = {}
+        t = time.time()
+        count[0] = f1()
+        times[0] = time.time() - t
+        t = time.time()
+        count[1] = f2()
+        times[1] = time.time() - t
+        same = count[0]==count[1]
+        reason = not same and (
+            f'Methods are different:\n'
+            f'Output of 1: {count[0]}\n'
+            f'Output of 2: {count[1]}'
+        )
+        self._test_summary(times, count, same, reason)
+        
+    def _test_summary(self, times, count, same, reason):
+        print(
+            f'repr: {self}\n'
+            f'hash: {hash(self)}\n'
+            f'n: {self.n}\n'
+            f'is_distributive: {self.is_distributive}\n'
+            f'Time used by method 1: {round(times[0], 2)}s\n'
+            f'Time used by method 2: {round(times[1], 2)}s\n'
+            f'Elements found by method 1: {count[0]}\n'
+            f'Elements found by method 2: {count[1]}\n'
+            f'Same output: {same}\n'
+        )
+        if not same:
+            self.throw(reason)
+            
+    def _test_assert_distributive(self):
+        self.is_distributive or self.throw(
+            f'The test can not be executed because the lattice is not distributive:\n'
+            f'{self._distributive_error}'
+        )
+    
+    def test_iter_f_monotone(self, outfile=None):
+        it1 = map(tuple, self.iter_f_monotone())
+        it2 = map(tuple, self.iter_f_monotone_bruteforce())
+        with Outfile(outfile):
+            self._test_iters(it1, it2)
+    
+    def test_iter_f_monotone_bottom(self, outfile=None):
+        it1 = map(tuple, self.iter_f_monotone_bottom())
+        it2 = map(tuple, self.iter_f_monotone_bottom_bruteforce())
+        with Outfile(outfile):
+            self._test_iters(it1, it2)
+    
+    def test_iter_f_lub_bottom(self, outfile=None):
+        it1 = map(tuple, self.iter_f_lub_bottom())
+        it2 = map(tuple, self.iter_f_lub_bottom_bruteforce())
+        with Outfile(outfile):
+            self._test_iters(it1, it2)
+    
+    def test_iter_f_lub(self, outfile=None):
+        it1 = map(tuple, self.iter_f_lub())
+        it2 = map(tuple, self.iter_f_lub_bruteforce())
+        with Outfile(outfile):
+            self._test_iters(it1, it2)
+    
+    def test_iter_f_lub_bottom_distributive(self, outfile=None):
+        self._test_assert_distributive()
+        it1 = map(tuple, self.iter_f_lub_bottom())
+        it2 = map(tuple, self.iter_f_lub_bottom_distributive())
+        with Outfile(outfile):
+            self._test_iters(it1, it2)
+    
+    def test_count_f_lub_bottom_distributive(self, outfile=None):
+        self._test_assert_distributive()
+        f1 = lambda : self.count_f_lub_bottom_distributive()
+        f2 = lambda : self.count_f_lub_bottom_bruteforce()
+        with Outfile(outfile):
+            self._test_counts(f1, f2)
+    
+    
+    # Methods for serialization
+    
+    def to_literal(self):
+        def get_dtype_string(dtype):
+            import re
+            aux = re.compile(r'(<class \'numpy\.(.*)\'>)|(<class \'(.*?)\'>)|(.*)')
+            g = aux.match(str(dtype)).groups()
+            s = g[1] or g[3] or g[4]
+            assert dtype == np.dtype(s), f'Non invertible dtype: {dtype} != np.dtype(\'{s}\')'
+            return s
+        
+        out = self.__dict__.copy()
+        for key, value in out.items():
+            if isinstance(value, np.ndarray):
+                out[key] = {
+                    'dtype': get_dtype_string(value.dtype),
+                    'array':value.tolist()
+                }
+        return out
+    
+    @classmethod
+    def from_literal(cls, lit):
+        def read_numpy_array(dict_):
+            arr = np.array(dict_['array'], dtype=dict_['dtype'])
+            if arr.size == 0:
+                arr = arr.reshape((0, 0))
+            arr.flags.writeable = False
+            return arr
+        V = cls(read_numpy_array(lit.pop('leq')))
+        for key,value in lit.items():
+            if isinstance(value, dict) and 'dtype' in value and 'array' in value:
+                value = read_numpy_array(value)
+            V.__dict__[key] = value
+        return V
+
+
+
+
+class LatticeCollection():
+    
+    def __init__(self, file=None):
+        self.file = file
+        self.h = defaultdict(lambda: [])
+        self.n = 0
+        if file:
+            self.__class__.from_file(file, out=self)
+    
+    def __repr__(self):
+        n = self.n
+        n_elems = '1 element' if n==1 else f'{n} elements'
+        return f'LatticeCollection(file="{self.file}") containing {n_elems}'
+    
+    def add(self, V):
+        'adds the lattice V to the collection and saves'
+        if self._add(V):
+            self.save()
+        
+    def _add(self, V):
+        'adds the lattice V to the collection. Combines cached properties if already present'
+        same_hash = self.h[hash(V)]
+        U = next((U for U in same_hash if U==V), None)
+        if U is not None:
+            changed = bool(set(V.__dict__) - set(U.__dict__))
+            U.__dict__.update(V.__dict__)
         else:
-            num = self.count_f_lub_bruteforce()
-        return num
+            V.assert_lattice()
+            same_hash.append(V)
+            self.n += 1
+            changed = True
+        return changed
+    
+    def save(self):
+        if self.file is not None:
+            with atomic_write(self.file, overwrite=True) as f:
+                f.write(str(self.to_literal()))
+    
+    def to_literal(self):
+        return {h:[V.to_literal() for V in l] for h,l in self.h.items()}
+    
+    @classmethod
+    def read_literal_file(cls, file):
+        try:
+            with open(file) as f:
+                lit = literal_eval(f.read())
+        except FileNotFoundError:
+            lit = {}
+        return lit
+    
+    @classmethod
+    def from_literal(cls, lit, out=None):
+        assert isinstance(lit, dict)
+        out = cls() if out is None else out
+        for h,l in lit.items():
+            for lit in l:
+                assert 'hash' in lit, f'Non-hashed literal found'
+                assert lit['hash'] == h, f"Inconsistent literal: {lit['hash']}!={h}"
+                V = Poset.from_literal(lit)
+                out._add(V)
+        if out.file is not None:
+            out.save()
+        return out
+    
+    @classmethod
+    def from_file(cls, file, out=None):
+        lit = cls.read_literal_file(file)
+        return cls.from_literal(lit, out)
+    
+    def __contains__(self, V):
+        return any(U==V for U in self.h[hash(V)])
+    
+    def __iter__(self):
+        yield from (U for same_hash in self.h.values() for U in same_hash)
+    
+    def __len__(self):
+        return self.n
+
+def example_2002():
+    grid = [[],[0],[0],[1],[1,2],[2],[3,4],[4,5],[6,7]]
+    grid.extend([[0],[0],[9,2],[10,1]])
+    for i,j in [(3,9),(5,10),(6,11),(7,12)]:
+        grid[i].append(j)
+    return Poset.from_children(grid)
+
+def example_1990():
+    grid = [[],[0],[0],[1],[1,2],[2],[3,4],[4,5],[6,7]]
+    children = [[j+9*(i>=9) for j in grid[i%9]] for i in range(18)]
+    for i,j in [(9,4),(10,6),(11,7),(13,8)]:
+        children[i].append(j)
+    return Poset.from_children(children)

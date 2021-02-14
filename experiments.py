@@ -286,6 +286,14 @@ def run_full_tests(size_limit=0):
     eprint(" Done.")
     write_test_results_csv("results-{}.csv".format(start_time), results)
 
+def run_random():
+    """Equivalent to calling `run()` with a random lattice as its parameter."""
+    from lattice import random_lattice, lattice_from_covers
+    covers = random_lattice(8, 0.95)
+    print("* Using lattice:", covers)
+    lattice = lattice_from_covers(covers)
+    run(lattice)
+
 def run_deltas(l: Lattice, deltas, verbose = False, test_functions = None, n_tests = 10, n_functions = 2, brute_force=False):
     """Runs all the `deltas` algorithms against a given lattice and
     `test_functions`, either random or explicit, similar to the run command,
@@ -650,7 +658,8 @@ def run_arbitrary_lattices(sizes, fixed_lattice=False):
 
 if __name__ == "__main__":
     # run_full_tests(size_limit=10)
+    # run_random()
+    # run_powerset(exponent=3, verbose=True, test_functions=[(0,4,5,6,7,7,7,7),(0,3,2,1,6,5,4,7)])
     run_full_powerset_tests()
     # run_arbitrary_lattices([4, 5, 6, 7, 8, 9, 10])
     # run_arbitrary_lattices([4, 8, 12, 16, 24, 28, 32], fixed_lattice=True)
-

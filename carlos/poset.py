@@ -1,9 +1,3 @@
-# pip3 install atomicwrites
-from atomicwrites import atomic_write
-from ast import literal_eval
-from collections import defaultdict
-#import Poset
-
 from cached_property import cached_property
 import pyhash
 import numpy as np
@@ -115,14 +109,31 @@ class Poset:
         return lt & ~any_inbetween
     
     def __repr__(self):
-        return f'{self.children}'
+        s = repr(self.children)
+        return f'P({s[1:-1]})'
     
-    def show(self, f=None, as_edges=False, save=None):
-        'Use graphviz to display or save self or the endomorphism f if given'
+    def show(self, f=None, as_edges=False, save=None, labels=None):
+        'Use graphviz to display or save self (or the endomorphism f if given)'
+        g = self.graphviz(f, as_edges, labels)
+        png = g.create_png()
+        
+        if save is None:
+            from IPython.display import display
+            from IPython.display import Image
+            img = Image(png)
+            display(img)
+        else:
+            with open(save, 'wb') as f:
+                f.write(png)
+        return
+    
+    def graphviz(self, f=None, as_edges=False, labels=None):
+        'Graphviz representation of self (or f if given)'
         n = self.n
         child = self.child
         extra_edges = None
-        labels = range(n)
+        if labels is None:
+            labels = range(n)
         if f is not None:
             n = self.n
             if as_edges:
@@ -131,6 +142,11 @@ class Poset:
                 labels = ['' for i in range(n)]
                 for i, l in groupby(range(n), f.__getitem__):
                     labels[i] = ','.join(map(str,l))
+        return self._graphviz(labels, extra_edges)
+    
+    def _graphviz(self, labels, extra_edges):
+        n = self.n
+        child = self.child
         
         from pydotplus import graph_from_edges
         from pydotplus.graphviz import Node, Edge
@@ -148,18 +164,7 @@ class Poset:
             for i,j in extra_edges:
                 style = {'color':'blue'}
                 g.add_edge(Edge(i, j, **style))
-
-        png = g.create_png()
-
-        if save is None:
-            from IPython.display import display
-            from IPython.display import Image
-            img = Image(png)
-            display(img)
-        else:
-            with open(save, 'wb') as f:
-                f.write(png)
-        return
+        return g
     
     def throw(self, message):
         print(message)
@@ -1011,7 +1016,7 @@ class Poset:
             if isinstance(value, np.ndarray):
                 out[key] = {
                     'dtype': get_dtype_string(value.dtype),
-                    'array':value.tolist()
+                    'array': value.tolist()
                 }
         return out
     
@@ -1029,98 +1034,48 @@ class Poset:
                 value = read_numpy_array(value)
             V.__dict__[key] = value
         return V
-
-
-
-
-class LatticeCollection():
     
-    def __init__(self, file=None):
-        self.file = file
-        self.h = defaultdict(lambda: [])
-        self.n = 0
-        if file:
-            self.__class__.from_file(file, out=self)
+    # Operations between lattices
     
-    def __repr__(self):
+    def stack_edge(self, other, above=False):
+        'Stacks self below other, adding an edge between self.top and other.bottom'
+        if above:
+            return other.stack_edge(self)
+        c = [[i for i in l] for l in self.children]
+        c.extend([[self.n+i for i in l] for l in other.children])
+        c[self.n+other.bottom].append(self.top)
+        return self.__class__.from_children(c)
+    
+    def series(self, other, above=False):
+        'Stacks self below other, replacing self.top with other.bottom'
+        if above:
+            return other.series(self)
+        if other.bottom != 0:
+            other = other.canonical
+        c = [[i for i in l] for l in self.children]
+        c.extend([[self.n-1+i for i in l] for l in other.children][1:])
+        return self.__class__.from_children(c)
+    
+    def decompose_series(self):
         n = self.n
-        n_elems = '1 element' if n==1 else f'{n} elements'
-        return f'LatticeCollection(file="{self.file}") containing {n_elems}'
-    
-    def add(self, V):
-        'adds the lattice V to the collection and saves'
-        if self._add(V):
-            self.save()
-        
-    def _add(self, V):
-        'adds the lattice V to the collection. Combines cached properties if already present'
-        same_hash = self.h[hash(V)]
-        U = next((U for U in same_hash if U==V), None)
-        if U is not None:
-            changed = bool(set(V.__dict__) - set(U.__dict__))
-            U.__dict__.update(V.__dict__)
-        else:
-            V.assert_lattice()
-            same_hash.append(V)
-            self.n += 1
-            changed = True
-        return changed
-    
-    def save(self):
-        if self.file is not None:
-            with atomic_write(self.file, overwrite=True) as f:
-                f.write(str(self.to_literal()))
-    
-    def to_literal(self):
-        return {h:[V.to_literal() for V in l] for h,l in self.h.items()}
-    
-    @classmethod
-    def read_literal_file(cls, file):
-        try:
-            with open(file) as f:
-                lit = literal_eval(f.read())
-        except FileNotFoundError:
-            lit = {}
-        return lit
-    
-    @classmethod
-    def from_literal(cls, lit, out=None):
-        assert isinstance(lit, dict)
-        out = cls() if out is None else out
-        for h,l in lit.items():
-            for lit in l:
-                assert 'hash' in lit, f'Non-hashed literal found'
-                assert lit['hash'] == h, f"Inconsistent literal: {lit['hash']}!={h}"
-                V = Poset.from_literal(lit)
-                out._add(V)
-        if out.file is not None:
-            out.save()
-        return out
-    
-    @classmethod
-    def from_file(cls, file, out=None):
-        lit = cls.read_literal_file(file)
-        return cls.from_literal(lit, out)
-    
-    def __contains__(self, V):
-        return any(U==V for U in self.h[hash(V)])
-    
-    def __iter__(self):
-        yield from (U for same_hash in self.h.values() for U in same_hash)
-    
-    def __len__(self):
-        return self.n
+        leq = self.leq
+        cmp = leq | leq.T
+        nodes = sorted(range(n), key=lambda i: leq[:,i].sum())
+        cuts = [i for i in nodes if cmp[i,:].sum()==n]
+        subs = [nodes[i:j] for i,j in zip(cuts, cuts[1:])]
+        return [self.subgraph(sub) for sub in subs]
 
-def example_2002():
+
+def example_2002(cls=Poset):
     grid = [[],[0],[0],[1],[1,2],[2],[3,4],[4,5],[6,7]]
     grid.extend([[0],[0],[9,2],[10,1]])
     for i,j in [(3,9),(5,10),(6,11),(7,12)]:
         grid[i].append(j)
-    return Poset.from_children(grid)
+    return cls.from_children(grid)
 
-def example_1990():
+def example_1990(cls=Poset):
     grid = [[],[0],[0],[1],[1,2],[2],[3,4],[4,5],[6,7]]
     children = [[j+9*(i>=9) for j in grid[i%9]] for i in range(18)]
     for i,j in [(9,4),(10,6),(11,7),(13,8)]:
         children[i].append(j)
-    return Poset.from_children(children)
+    return cls.from_children(children)

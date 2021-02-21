@@ -2,10 +2,22 @@ from cached_property import cached_property
 import pyhash
 import numpy as np
 from collections import deque
-from itertools import product, groupby, chain
+from itertools import product, chain
 from functools import reduce
 import time, sys
+import re
 
+
+_get_dtype_string = re.compile(r'(<class \'numpy\.(.*)\'>)|(<class \'(.*?)\'>)|(.*)')
+
+def get_dtype_string(dtype):
+    'return the dtype string of a numpy dtype'
+    g = _get_dtype_string.match(str(dtype)).groups()
+    dtype_str = g[1] or g[3] or g[4]
+    assert dtype == np.dtype(dtype_str), (
+        f'Non invertible dtype: {dtype} != np.dtype(\'{dtype_str}\')'
+    )
+    return dtype_str
 
 
 def product_list(*iterables, repeat=1, out=None):
@@ -26,6 +38,11 @@ def product_list(*iterables, repeat=1, out=None):
 
 
 class Outfile:
+    '''
+    Redirect stdout to a file inside statements like:
+    with Outfile(...):
+        print(...)
+    '''
     def __init__(self, outfile=None):
         self.outfile = outfile
         
@@ -41,6 +58,7 @@ class Outfile:
 
 
 class PosetException(Exception):
+    'Dummy exception for the poset class'
     pass
 
 
@@ -76,11 +94,17 @@ class Poset:
         several runs unless PYTHONHASHSEED is set prior to execution.
     
     Example:
-        V = Poset.from_children([[],[0],[0],[1,2]])
+        T = Poset.Total
+        V = T(2).pow(3)
         V.show()
-        print(V.num_f_lub)
-            for f in V.iter_f_lub_bruteforce():
+        V = (T(2)|T(1)).downset_closure()
+        V.show()
+        print(V.is_distributive)
+        print(V.num_f_lub_pairs)
+        for f in V.iter_f_lub_pairs_bruteforce():
             V.show(f)
+            print(f)
+        V.downset_closure().show()
     """
     
     def __init__(self, leq):
@@ -92,6 +116,12 @@ class Poset:
         self.n = n
         self.leq = leq
     
+    @classmethod
+    def Total(cls, n):
+        'total order of n elements'
+        G = [[i-1] if i>0 else [] for i in range(n)]
+        return cls.from_children(G)
+
     # Representation methods
     
     @cached_property
@@ -108,9 +138,19 @@ class Poset:
         any_inbetween = np.matmul(lt, lt)
         return lt & ~any_inbetween
     
+    @cached_property
+    def name(self):
+        'Default name format'
+        n = self.n
+        C = self.children
+        topo = self.toposort
+        Cstr = lambda i: ','.join(map(str,C[i]))
+        it = (f'{i}>{Cstr(i)}' for i in topo if C[i])
+        name = ' : '.join((f'{n}', *it))
+        return f'P({name})'
+
     def __repr__(self):
-        s = repr(self.children)
-        return f'P({s[1:-1]})'
+        return self.name
     
     def show(self, f=None, as_edges=False, save=None, labels=None):
         'Use graphviz to display or save self (or the endomorphism f if given)'
@@ -139,9 +179,10 @@ class Poset:
             if as_edges:
                 extra_edges = [(i,f[i]) for i in range(n)]
             else:
-                labels = ['' for i in range(n)]
-                for i, l in groupby(range(n), f.__getitem__):
-                    labels[i] = ','.join(map(str,l))
+                gr = [[] for i in range(n)]
+                for i in range(n):
+                    gr[f[i]].append(i)
+                labels = [','.join(map(str,l)) for l in gr]
         return self._graphviz(labels, extra_edges)
     
     def _graphviz(self, labels, extra_edges):
@@ -218,6 +259,18 @@ class Poset:
         poset.__dict__['dist'] = dist
         return poset
     
+    @classmethod
+    def from_down_edges(cls, n, edges):
+        'Poset of size n that respect all edges (ancestor, descendant)'
+        leq = np.zeros((n,n), dtype=bool)
+        leq[np.diag_indices_from(leq)] = True
+        for anc, des in edges:
+            leq[des, anc] = True
+        leq = np.matmul(leq, leq)
+        leq.flags.writeable = False
+        return cls(leq)
+
+
     @classmethod
     def is_partial_order(cls, rel):
         "Check if the given relation is transitive, reflexive and antysimetric"
@@ -490,7 +543,8 @@ class Poset:
     
     @cached_property
     def forbidden_pairs(self):
-        "Pairs (i,j) that break lub uniqueness or partial order structure if i<=j is assumed"
+        "Pairs (i,j) that break lub uniqueness or partial order structure"
+        "if i<=j is assumed"
         n = self.n
         leq = self.leq
         joi = self.lub
@@ -614,10 +668,10 @@ class Poset:
         f = [None]*self.n
         yield from self.iter_f_monotone_restricted(_f=f)
     
-    def iter_f_lub_bottom_bruteforce(self):
+    def iter_f_lub_bruteforce(self):
         'all space functions. Throws if no bottom'
         for f in self.iter_f_monotone_bottom():
-            if self.f_is_lub(f):
+            if self.f_is_lub_pairs(f):
                 yield f
         return
     
@@ -738,18 +792,20 @@ class Poset:
     
     # Methods for endomorphisms that preserve lub
     
-    def f_is_lub_bottom(self, f, domain=None):
-        'check if f preserves lub and f[bottom] is bottom. Throws if no bottom'
+    def f_is_lub(self, f, domain=None):
+        'check if f preserves lubs for sets:\n'
+        'check f_is_lub_pairs and and f[bottom]=bottom.\n'
+        'Throws if no bottom'
         n = self.n
         if n==0 or (domain is not None and len(domain)<=1):
             return True
         bot = self.bottom
         if f[bot] != bot or (domain is not None and bot not in domain):
             return False
-        return self.f_is_lub(f, domain)
+        return self.f_is_lub_pairs(f, domain)
     
-    def f_is_lub(self, f, domain=None):
-        'check if f preserves lub'
+    def f_is_lub_pairs(self, f, domain=None):
+        'check if f preserves lubs for pairs: f[lub[i,j]]=lub[f[i],f[j]]'
         n = self.n
         domain = range(n) if domain is None else domain
         lub = self.lub
@@ -759,54 +815,54 @@ class Poset:
                     return False
         return True
 
-    def iter_f_lub_bruteforce(self):
-        'all join endomorphisms'
+    def iter_f_lub_pairs_bruteforce(self):
+        'all functions that statisfy f_is_lub_pairs'
         for f in self.iter_f_monotone():
-            if self.f_is_lub(f):
+            if self.f_is_lub_pairs(f):
                 yield f
         return
                 
-    def iter_f_lub(self):
-        'all lub preserving functions'
+    def iter_f_lub_pairs(self):
+        'all functions that statisfy f_is_lub'
         it = self.iter_f_irreducibles_monotone()
         if self.is_distributive:
             yield from it
         else:
             for f in it:
-                if self.f_is_lub(f):
+                if self.f_is_lub_pairs(f):
                     yield f
     
-    def iter_f_lub_bottom(self):
-        'all lub preserving functions with f[bottom]=bottom'
+    def iter_f_lub(self):
+        'all functions that preserve lubs for sets'
         it = self.iter_f_irreducibles_monotone_bottom()
         if self.is_distributive:
             yield from it
         else:
             for f in it:
-                if self.f_is_lub(f):
+                if self.f_is_lub_pairs(f):
                     yield f
     
     
     @cached_property
+    def num_f_lub_pairs(self):
+        return self.count_f_lub_pairs_bruteforce()
+    
+    def count_f_lub_pairs_bruteforce(self):
+        return sum(1 for f in self.iter_f_lub_pairs())
+    
+    @cached_property
     def num_f_lub(self):
-        return self.count_f_lub_bruteforce()
+        return self.count_f_lub()
+    
+    def count_f_lub(self):
+        if self.is_distributive:
+            num = self.count_f_lub_distributive()
+        else:
+            num = self.count_f_lub_bruteforce()
+        return num
     
     def count_f_lub_bruteforce(self):
         return sum(1 for f in self.iter_f_lub())
-    
-    @cached_property
-    def num_f_lub_bottom(self):
-        return self.count_f_lub_bottom()
-    
-    def count_f_lub_bottom(self):
-        if self.is_distributive:
-            num = self.count_f_lub_bottom_distributive()
-        else:
-            num = self.count_f_lub_bottom_bruteforce()
-        return num
-    
-    def count_f_lub_bottom_bruteforce(self):
-        return sum(1 for f in self.iter_f_lub_bottom())
     
     
     # Optimizations for distributive lattices
@@ -836,12 +892,12 @@ class Poset:
     def assert_distributive(self):
         self.is_distributive or self.throw(self._distributive_error)
     
-    def iter_f_lub_bottom_distributive(self):
+    def iter_f_lub_distributive(self):
         'generate and interpolate all monotone functions over irreducibles'
         self.assert_distributive()
         yield from self.iter_f_irreducibles_monotone_bottom()
 
-    def count_f_lub_bottom_distributive(self):
+    def count_f_lub_distributive(self):
         self.assert_distributive()
         if self.n == 0:
             return 0
@@ -973,51 +1029,46 @@ class Poset:
         with Outfile(outfile):
             self._test_iters(it1, it2)
     
-    def test_iter_f_lub_bottom(self, outfile=None):
-        it1 = map(tuple, self.iter_f_lub_bottom())
-        it2 = map(tuple, self.iter_f_lub_bottom_bruteforce())
-        with Outfile(outfile):
-            self._test_iters(it1, it2)
-    
     def test_iter_f_lub(self, outfile=None):
         it1 = map(tuple, self.iter_f_lub())
         it2 = map(tuple, self.iter_f_lub_bruteforce())
         with Outfile(outfile):
             self._test_iters(it1, it2)
     
-    def test_iter_f_lub_bottom_distributive(self, outfile=None):
-        self._test_assert_distributive()
-        it1 = map(tuple, self.iter_f_lub_bottom())
-        it2 = map(tuple, self.iter_f_lub_bottom_distributive())
+    def test_iter_f_lub_pairs(self, outfile=None):
+        it1 = map(tuple, self.iter_f_lub_pairs())
+        it2 = map(tuple, self.iter_f_lub_pairs_bruteforce())
         with Outfile(outfile):
             self._test_iters(it1, it2)
     
-    def test_count_f_lub_bottom_distributive(self, outfile=None):
+    def test_iter_f_lub_distributive(self, outfile=None):
         self._test_assert_distributive()
-        f1 = lambda : self.count_f_lub_bottom_distributive()
-        f2 = lambda : self.count_f_lub_bottom_bruteforce()
+        it1 = map(tuple, self.iter_f_lub())
+        it2 = map(tuple, self.iter_f_lub_distributive())
+        with Outfile(outfile):
+            self._test_iters(it1, it2)
+    
+    def test_count_f_lub_distributive(self, outfile=None):
+        self._test_assert_distributive()
+        f1 = lambda : self.count_f_lub_distributive()
+        f2 = lambda : self.count_f_lub_bruteforce()
         with Outfile(outfile):
             self._test_counts(f1, f2)
     
     
     # Methods for serialization
     
-    def to_literal(self):
-        def get_dtype_string(dtype):
-            import re
-            aux = re.compile(r'(<class \'numpy\.(.*)\'>)|(<class \'(.*?)\'>)|(.*)')
-            g = aux.match(str(dtype)).groups()
-            s = g[1] or g[3] or g[4]
-            assert dtype == np.dtype(s), f'Non invertible dtype: {dtype} != np.dtype(\'{s}\')'
-            return s
-        
+    def to_literal(self, keys=None):
+        'Json serializable representation of self that also stores \n'
+        'some expensive cached data'
         out = self.__dict__.copy()
         for key, value in out.items():
-            if isinstance(value, np.ndarray):
-                out[key] = {
-                    'dtype': get_dtype_string(value.dtype),
-                    'array': value.tolist()
-                }
+            if keys is None or key in keys:
+                if isinstance(value, np.ndarray):
+                    out[key] = {
+                        'dtype': get_dtype_string(value.dtype),
+                        'array': value.tolist()
+                    }
         return out
     
     @classmethod
@@ -1036,6 +1087,127 @@ class Poset:
         return V
     
     # Operations between lattices
+
+
+    def __mul__(self, other):
+        'poset "standard" multiplication'
+        n = self.n
+        m = other.n
+        G = [[] for i in range(n*m)]
+        for i in range(n):
+            for j in range(m):
+                for k in self.children[i]:
+                    G[i+j*n].append(k+j*n)
+                for k in other.children[j]:
+                    G[i+j*n].append(i+k*n)
+        return self.__class__.from_children(G)
+
+    def __or__(self, other):
+        'put other at the right of self without connections'
+        n = self.n
+        C = [
+            *([j for j in Ci] for Ci in self.children),
+            *([j+n for j in Ci] for Ci in other.children),
+        ]
+        return self.__class__.from_children(C)
+
+    def __add__(self, other):
+        'stack other above self and connect all self.tops with all other.bottoms'
+        n = self.n
+        m = other.n
+        is_top = self.leq.sum(axis=1)==1
+        is_bottom = other.leq.sum(axis=0)==1
+        tops = [i for i in range(n) if is_top[i]]
+        bottoms = [i for i in range(m) if is_bottom[i]]
+        C = [
+            *([j for j in Ci] for Ci in self.children),
+            *([j+n for j in Ci] for Ci in other.children),
+        ]
+        for i in tops:
+            for j in bottoms:
+                C[j+n].append(i)
+        return self.__class__.from_children(C)
+
+    def __and__(self, other):
+        'stack other above self and put self.tops * other.bottoms inbetween'
+        n = self.n
+        m = other.n
+        is_top = self.leq.sum(axis=1)==1
+        is_bottom = other.leq.sum(axis=0)==1
+        tops = [i for i in range(n) if is_top[i]]
+        non_tops = [i for i in range(n) if ~is_top[i]]
+        bottoms = [i for i in range(m) if is_bottom[i]]
+        non_bottoms = [i for i in range(m) if ~is_bottom[i]]
+        nodes = [
+            *((-1,i) for i in non_tops),
+            *((i,j) for i in tops for j in bottoms),
+            *((n,j) for j in non_bottoms),
+        ]
+        C = {v:[] for v in nodes}
+        for i in non_tops:
+            for j in self.children[i]:
+                C[(-1,i)].append((-1,j))
+        for i in non_bottoms:
+            for j in other.parents[i]:
+                C[(n,j)].append((n,i))
+        for i in tops:
+            for j in self.children[i]:
+                for k in bottoms:
+                    C[(i,k)].append((-1,j))
+        for i in bottoms:
+            for j in other.parents[i]:
+                for k in tops:
+                    C[(n,j)].append((k,i))
+        f = {node:i for i,node in enumerate(sorted(nodes))}
+        children = [[] for i in range(len(f))]
+        for i,Ci in C.items():
+            for j in Ci:
+                children[f[i]].append(f[j])
+        return self.__class__.from_children(children)
+    
+    def downset_closure(self):
+        n = self.n
+        leq = self.leq
+        sets = set([frozenset()])
+        last = set(frozenset(j for j in range(n) if leq[j,i]) for i in range(n))
+        while last:
+            curr = set(c for a in last for b in last for c in (a|b, a&b) if c not in sets)
+            sets |= last
+            last = curr
+        f = {s:i for i,s in enumerate(sorted(sets, key=lambda s:len(s)))}
+        E = [(f[b], f[a]) for a in sets for b in sets if a < b]
+        return self.__class__.from_down_edges(len(sets), E)
+
+    def times(self, n):
+        'add self with itself n times'
+        assert isinstance(n, int) and n>=0, f'{n}'
+        if n==0:
+            out = self.__class__.Total(0)
+        else:
+            out = self._operation_times(lambda a,b: a+b, n)
+        return out
+
+    def pow(self, n):
+        'multiply self with itself n times'
+        assert isinstance(n, int) and n>=0, f'{n}'
+        if n==0:
+            out = self.__class__.Total(1)
+        else:
+            out = self._operation_times(lambda a,b: a*b, n)
+        return out
+    
+    def _operation_times(self, operation, n):
+        'operate self with itself n>=1 times. operation must be associative'
+        if n==1:
+            out = self
+        else:
+            out = self._operation_times(operation, n//2)
+            out = operation(out, out)
+            if n%2==1:
+                out = operation(out, self)
+        return out
+
+
     
     def stack_edge(self, other, above=False):
         'Stacks self below other, adding an edge between self.top and other.bottom'
@@ -1045,6 +1217,9 @@ class Poset:
         c.extend([[self.n+i for i in l] for l in other.children])
         c[self.n+other.bottom].append(self.top)
         return self.__class__.from_children(c)
+
+
+
     
     def series(self, other, above=False):
         'Stacks self below other, replacing self.top with other.bottom'
@@ -1065,17 +1240,26 @@ class Poset:
         subs = [nodes[i:j] for i,j in zip(cuts, cuts[1:])]
         return [self.subgraph(sub) for sub in subs]
 
+    @classmethod
+    def examples(cls):
+        examples = {}
+        grid = [[],[0],[0],[1],[1,2],[2],[3,4],[4,5],[6,7]]
+        grid.extend([[0],[0],[9,2],[10,1]])
+        for i,j in [(3,9),(5,10),(6,11),(7,12)]:
+            grid[i].append(j)
+        examples['portrait-2002'] = cls.from_children(grid)
+        examples['portrait-2002'].__dict__['num_f_lub'] = 13858
+        grid = [[],[0],[0],[1],[1,2],[2],[3,4],[4,5],[6,7]]
+        grid = [[j+9*(i>=9) for j in grid[i%9]] for i in range(18)]
+        for i,j in [(9,4),(10,6),(11,7),(13,8)]:
+            grid[i].append(j)
+        examples['portrait-1990'] = cls.from_children(grid)
+        examples['portrait-1990'].__dict__['num_f_lub'] = 1460356
+        examples['2^0'] = cls.from_children([[]])
+        examples['2^1'] = cls.from_children([[],[0]])
+        #for k in range(1, 10):
+        #    examples[f'2^{k+1}'] = examples[f'2^{k}'] * examples[f'2^{k}']
+        #examples['tower-crane'] = 
+        #examples['tower-crane'] = 
+        return examples
 
-def example_2002(cls=Poset):
-    grid = [[],[0],[0],[1],[1,2],[2],[3,4],[4,5],[6,7]]
-    grid.extend([[0],[0],[9,2],[10,1]])
-    for i,j in [(3,9),(5,10),(6,11),(7,12)]:
-        grid[i].append(j)
-    return cls.from_children(grid)
-
-def example_1990(cls=Poset):
-    grid = [[],[0],[0],[1],[1,2],[2],[3,4],[4,5],[6,7]]
-    children = [[j+9*(i>=9) for j in grid[i%9]] for i in range(18)]
-    for i,j in [(9,4),(10,6),(11,7),(13,8)]:
-        children[i].append(j)
-    return cls.from_children(children)

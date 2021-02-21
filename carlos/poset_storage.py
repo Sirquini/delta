@@ -1,4 +1,5 @@
 import sqlite3
+from ast import literal_eval
 
 
 class KVStorage(dict):
@@ -37,10 +38,15 @@ class KVStorage(dict):
 
 class PosetStorage():
     
-    'Set of posets with replace (add or replace) operation and sampling'
+    '''
+    Set of posets with replace (add or replace) operation and sampling
+    The cls parameter is the Poset class that can parse literals
+    '''
     
-    def __init__(self, file=':memory:'):
-        self.h = KVStorage(file, self.to_literal, self.from_literal)
+    def __init__(self, cls, file=':memory:'):
+        to_literal = lambda posets: [V.to_literal() for V in posets]
+        from_literal = lambda lits: [cls.from_literal(lit) for lit in lits]
+        self.h = KVStorage(file, to_literal, from_literal)
         self.file = file
         self.n = sum(len(v) for v in self.h.values())
         self.pop = Population(*self.h.keys())
@@ -49,14 +55,6 @@ class PosetStorage():
         n = self.n
         n_elems = '1 element' if n==1 else f'{n} elements'
         return f'PosetStorage(file="{self.file}") containing {n_elems}'
-    
-    @staticmethod
-    def to_literal(posets):
-        return [V.to_literal() for V in posets]
-    
-    @staticmethod
-    def from_literal(lits):
-        return [Poset.from_literal(lit) for lit in lits]
     
     def add(self, V):
         'adds the lattice V to the collection. Combines cached properties if already present'
@@ -160,7 +158,7 @@ class Population():
         for n in range(len(self), 0, -1):
             i = random.choice(range(n))
             self._swap(i, n-1)
-            yield self.l[n-1] 
+            yield self.l[n-1]
 
 
 def as_html(file, posets):

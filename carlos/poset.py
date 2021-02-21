@@ -94,17 +94,17 @@ class Poset:
         several runs unless PYTHONHASHSEED is set prior to execution.
     
     Example:
-        T = Poset.Total
+        T = Poset.total
         V = T(2).pow(3)
         V.show()
-        V = (T(2)|T(1)).downset_closure()
+        V = (T(2)|T(1)).downset_closure
         V.show()
         print(V.is_distributive)
         print(V.num_f_lub_pairs)
         for f in V.iter_f_lub_pairs_bruteforce():
             V.show(f)
             print(f)
-        V.downset_closure().show()
+        V.downset_closure.show()
     """
     
     def __init__(self, leq):
@@ -115,12 +115,6 @@ class Poset:
         assert tuple(leq.shape)==(n,n), f'leq must be squared {leq.shape}'
         self.n = n
         self.leq = leq
-    
-    @classmethod
-    def Total(cls, n):
-        'total order of n elements'
-        G = [[i-1] if i>0 else [] for i in range(n)]
-        return cls.from_children(G)
 
     # Representation methods
     
@@ -913,22 +907,6 @@ class Poset:
         k_independent = [num(k) for k in range(m)]
         return reduce(lambda a,b: a*b, k_independent, 1)
     
-
-    # Methods related with entropy
-
-    @cached_property
-    def num_lt(self):
-        return self.num_leq - self.n
-    @cached_property
-    def num_leq(self):
-        return self.leq.sum()
-    @cached_property
-    def num_child(self):
-        return self.child.sum()
-    @cached_property
-    def num_incomparable(self):
-        cmp = self.leq | self.leq.T
-        return (~cmp).sum() // 2
     
     
     # Testing methods
@@ -1086,32 +1064,71 @@ class Poset:
             V.__dict__[key] = value
         return V
     
-    # Operations between lattices
+    # Methods related with entropy
 
+    def count_antichains_bruteforce(self):
+        return self.downset_closure.n
 
-    def __mul__(self, other):
-        'poset "standard" multiplication'
+    @cached_property
+    def num_antichains(self):
+        return self.count_antichains_bruteforce()
+    
+    @cached_property
+    def downset_closure(self):
         n = self.n
-        m = other.n
-        G = [[] for i in range(n*m)]
-        for i in range(n):
-            for j in range(m):
-                for k in self.children[i]:
-                    G[i+j*n].append(k+j*n)
-                for k in other.children[j]:
-                    G[i+j*n].append(i+k*n)
-        return self.__class__.from_children(G)
+        leq = self.leq
+        sets = set([frozenset()])
+        last = set(frozenset(j for j in range(n) if leq[j,i]) for i in range(n))
+        while last:
+            curr = set(c for a in last for b in last for c in (a|b, a&b) if c not in sets)
+            sets |= last
+            last = curr
+        f = {s:i for i,s in enumerate(sorted(sets, key=lambda s:len(s)))}
+        E = [(f[b], f[a]) for a in sets for b in sets if a < b]
+        return self.__class__.from_down_edges(len(sets), E)
 
-    def __or__(self, other):
-        'put other at the right of self without connections'
-        n = self.n
-        C = [
-            *([j for j in Ci] for Ci in self.children),
-            *([j+n for j in Ci] for Ci in other.children),
-        ]
-        return self.__class__.from_children(C)
+    # Constructors and operations between lattices
+    
+    @classmethod
+    def total(cls, n):
+        'total order of n elements'
+        G = [[i-1] if i>0 else [] for i in range(n)]
+        return cls.from_children(G)
+
+    def __invert__(self):
+        'flip the poset upside down'
+        return self.__class__.from_children(self.parents)
 
     def __add__(self, other):
+        if isinstance(other, int):
+            out = self.add_number(other)
+        else:
+            out = self.add_poset(other)
+        return out
+
+    def __mul__(self, other):
+        if isinstance(other, int):
+            out = self.mul_number(other)
+        else:
+            out = self.mul_poset(other)
+        return out
+
+    def __or__(self, other):
+        if isinstance(other, int):
+            out = self.or_number(other)
+        else:
+            out = self.or_poset(other)
+        return out
+
+    def __and__(self, other):
+        if isinstance(other, int):
+            out = self.and_number(other)
+        else:
+            out = self.and_poset(other)
+        return out
+
+
+    def add_poset(self, other):
         'stack other above self and connect all self.tops with all other.bottoms'
         n = self.n
         m = other.n
@@ -1128,7 +1145,29 @@ class Poset:
                 C[j+n].append(i)
         return self.__class__.from_children(C)
 
-    def __and__(self, other):
+    def mul_poset(self, other):
+        'poset standard multiplication'
+        n = self.n
+        m = other.n
+        G = [[] for i in range(n*m)]
+        for i in range(n):
+            for j in range(m):
+                for k in self.children[i]:
+                    G[i+j*n].append(k+j*n)
+                for k in other.children[j]:
+                    G[i+j*n].append(i+k*n)
+        return self.__class__.from_children(G)
+
+    def or_poset(self, other):
+        'put other at the right of self without connections'
+        n = self.n
+        C = [
+            *([j for j in Ci] for Ci in self.children),
+            *([j+n for j in Ci] for Ci in other.children),
+        ]
+        return self.__class__.from_children(C)
+
+    def and_poset(self, other):
         'stack other above self and put self.tops * other.bottoms inbetween'
         n = self.n
         m = other.n
@@ -1164,72 +1203,57 @@ class Poset:
             for j in Ci:
                 children[f[i]].append(f[j])
         return self.__class__.from_children(children)
-    
-    def downset_closure(self):
-        n = self.n
-        leq = self.leq
-        sets = set([frozenset()])
-        last = set(frozenset(j for j in range(n) if leq[j,i]) for i in range(n))
-        while last:
-            curr = set(c for a in last for b in last for c in (a|b, a&b) if c not in sets)
-            sets |= last
-            last = curr
-        f = {s:i for i,s in enumerate(sorted(sets, key=lambda s:len(s)))}
-        E = [(f[b], f[a]) for a in sets for b in sets if a < b]
-        return self.__class__.from_down_edges(len(sets), E)
 
-    def times(self, n):
+    def add_number(self, n):
         'add self with itself n times'
         assert isinstance(n, int) and n>=0, f'{n}'
         if n==0:
-            out = self.__class__.Total(0)
+            out = self.__class__.total(0)
         else:
-            out = self._operation_times(lambda a,b: a+b, n)
+            out = self._operation_number(lambda a,b: a+b, n)
         return out
 
-    def pow(self, n):
+    def mul_number(self, n):
         'multiply self with itself n times'
         assert isinstance(n, int) and n>=0, f'{n}'
         if n==0:
-            out = self.__class__.Total(1)
+            out = self.__class__.total(1)
         else:
-            out = self._operation_times(lambda a,b: a*b, n)
+            out = self._operation_number(lambda a,b: a*b, n)
+        return out
+
+    def or_number(self, n):
+        'OR operation of self with itself n times'
+        assert isinstance(n, int) and n>=0, f'{n}'
+        if n==0:
+            out = self.__class__.total(0)
+        else:
+            out = self._operation_number(lambda a,b: a|b, n)
+        return out
+
+    def and_number(self, n):
+        'AND operation of self with itself n times'
+        assert isinstance(n, int) and n>=0, f'{n}'
+        if n==0:
+            out = self.__class__.total(1)
+        else:
+            out = self._operation_number(lambda a,b: a&b, n)
         return out
     
-    def _operation_times(self, operation, n):
+    def _operation_number(self, operation, n):
         'operate self with itself n>=1 times. operation must be associative'
         if n==1:
             out = self
         else:
-            out = self._operation_times(operation, n//2)
+            out = self._operation_number(operation, n//2)
             out = operation(out, out)
             if n%2==1:
                 out = operation(out, self)
         return out
 
 
-    
-    def stack_edge(self, other, above=False):
-        'Stacks self below other, adding an edge between self.top and other.bottom'
-        if above:
-            return other.stack_edge(self)
-        c = [[i for i in l] for l in self.children]
-        c.extend([[self.n+i for i in l] for l in other.children])
-        c[self.n+other.bottom].append(self.top)
-        return self.__class__.from_children(c)
 
-
-
-    
-    def series(self, other, above=False):
-        'Stacks self below other, replacing self.top with other.bottom'
-        if above:
-            return other.series(self)
-        if other.bottom != 0:
-            other = other.canonical
-        c = [[i for i in l] for l in self.children]
-        c.extend([[self.n-1+i for i in l] for l in other.children][1:])
-        return self.__class__.from_children(c)
+    # Unclassified methods that will probably dissapear in the future
     
     def decompose_series(self):
         n = self.n
@@ -1255,8 +1279,8 @@ class Poset:
             grid[i].append(j)
         examples['portrait-1990'] = cls.from_children(grid)
         examples['portrait-1990'].__dict__['num_f_lub'] = 1460356
-        examples['2^0'] = cls.from_children([[]])
-        examples['2^1'] = cls.from_children([[],[0]])
+        examples['T1'] = cls.from_children([[]])
+        examples['T2'] = cls.from_children([[],[0]])
         #for k in range(1, 10):
         #    examples[f'2^{k+1}'] = examples[f'2^{k}'] * examples[f'2^{k}']
         #examples['tower-crane'] = 

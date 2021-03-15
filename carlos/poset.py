@@ -75,7 +75,8 @@ class Poset:
     The main attributes (always present) are:
         - n: size of the poset. The elements of the poset are range(n)
         - leq: read only (inmutable) boolean nxn matrix. leq[i,j]==True iff i <= j
-    
+        - labels: tuple of n strings. Only used for displaying
+
     All other attributes are lazy loaded and usually cached.
     
     Conventions:
@@ -107,14 +108,19 @@ class Poset:
         V.downset_closure.show()
     """
     
-    def __init__(self, leq):
+    def __init__(self, leq, labels=None):
         'assumes that leq is indeeed a partial order'
         assert leq.dtype==bool, 'leq must be a boolean numpy array'
         assert leq.flags.writeable == False, 'leq must be read-only'
         n = leq.shape[0]
         assert tuple(leq.shape)==(n,n), f'leq must be squared {leq.shape}'
+        if labels is None:
+            labels = tuple(f'{i}' for i in range(n))
+        assert len(labels)==n, f'{len(labels)} labels found. Expected {n}'
+        assert all(isinstance(l, str) for l in labels), 'labels must be strings'
         self.n = n
         self.leq = leq
+        self.labels = labels
 
     # Representation methods
     
@@ -134,7 +140,7 @@ class Poset:
     
     @cached_property
     def name(self):
-        'Default name format'
+        'Compact and readable representation of self'
         n = self.n
         C = self.children
         topo = self.toposort
@@ -167,7 +173,7 @@ class Poset:
         child = self.child
         extra_edges = None
         if labels is None:
-            labels = range(n)
+            labels = self.labels
         if f is not None:
             n = self.n
             if as_edges:
@@ -227,16 +233,16 @@ class Poset:
     # Interface methods
     
     @classmethod
-    def from_parents(cls, parents):
+    def from_parents(cls, parents, labels=None):
         n = len(parents)
         children = [[] for i in range(n)]
         for ch in range(n):
             for pa in parents[ch]:
                 children[pa].append(ch)
-        return cls.from_children(children)
+        return cls.from_children(children, labels)
     
     @classmethod
-    def from_children(cls, children):
+    def from_children(cls, children, labels=None):
         n = len(children)
         child = np.zeros((n,n), dtype=bool)
         for pa in range(n):
@@ -247,7 +253,7 @@ class Poset:
         dist.flags.writeable = False
         leq = dist < n
         leq.flags.writeable = False
-        poset = cls(leq)
+        poset = cls(leq, labels)
         poset.is_partial_order(leq) or poset.throw('Not a partial order')
         poset.__dict__['child'] = child
         poset.__dict__['dist'] = dist
@@ -264,6 +270,15 @@ class Poset:
         leq.flags.writeable = False
         return cls(leq)
 
+    @classmethod
+    def from_lambda(cls, elems, f_leq, labels=None):
+        m = len(elems)
+        leq = np.zeros((m, m), dtype=bool)
+        for i in range(m):
+            for j in range(m):
+                leq[i,j] = f_leq(elems[i], elems[j])
+        leq.flags.writeable = False
+        return cls(leq, labels)
 
     @classmethod
     def is_partial_order(cls, rel):
@@ -305,7 +320,8 @@ class Poset:
             for j in range(m):
                 sub[i,j] = leq[domain[i], domain[j]]
         sub.flags.writeable = False
-        return self.__class__(sub)
+        labels = tuple(self.labels[i] for i in domain)
+        return self.__class__(sub, labels=labels)
     
     @cached_property
     def toposort(self):
@@ -460,7 +476,7 @@ class Poset:
         return self.hash
     
     def __eq__(self, other):
-        'Equality up to isomorphism, i.e. up to relabeling'
+        'Equality up to isomorphism, i.e. up to reindexing'
         N_NO_HASH_COLLISIONS_TESTED = 10
         if self.n == other.n <= N_NO_HASH_COLLISIONS_TESTED:
             eq = hash(self) == hash(other)
@@ -491,8 +507,8 @@ class Poset:
         return next((f for f in remaining if is_isomorphism(f)), None)
     
     
-    def relabel(self, f, inverse=False):
-        'Relabelled copy of self that i is to self as f[i] to out'
+    def reindex(self, f, inverse=False):
+        'Reindexed copy of self such that i is to self as f[i] to out'
         'If inverse==True, then f[i] is to self as i to out'
         n = self.n
         assert len(f)==n and sorted(set(f))==list(range(n)), f'Invalid permutation {f}'
@@ -507,30 +523,40 @@ class Poset:
             for j in range(n):
                 out[f[i],f[j]] = leq[i,j]
         out.flags.writeable = False
-        return self.__class__(out)
+        out_labels = [None for i in range(n)]
+        for i in range(n):
+            out_labels[f[i]] = self.labels[i]
+        out_labels = tuple(out_labels)
+        return self.__class__(out, labels=out_labels)
     
     @cached_property
-    def canonical_mapping(self):
-        n = self.n
-        leq = self.leq
-        h = self.hash_elems
-        def key(i):
-            return (dist[0,i], leq[:,i].sum())
-        g = sorted(range(n), key=lambda i: (leq[:,i].sum(), h[i], ))
-        f = list(range(n))
-        for i in range(n):
-            f[g[i]] = i
-        return f
+    def canonical(self):
+        'representant of the equivalence class of self under reindex relation'
+        if self.is_canonical:
+            representant = self
+        else:
+            representant = self.reindex(self.canonical_index)
+        return representant
     
     @cached_property
     def is_canonical(self):
         is_sorted = lambda l: all(a<=b for a,b in zip(l,l[1:]))
-        return is_sorted(self.canonical_mapping)
+        return is_sorted(self.canonical_index)
     
     @cached_property
-    def canonical(self):
-        'Relabelled copy'
-        return self.relabel(self.canonical_mapping)
+    def canonical_index(self):
+        'index that transforms self into the representant'
+        n = self.n
+        leq = self.leq
+        h = self.hash_elems
+        l = self.labels
+        def key(i):
+            return (dist[0,i], leq[:,i].sum())
+        g = sorted(range(n), key=lambda i: (leq[:,i].sum(), h[i], l[i]))
+        f = list(range(n))
+        for i in range(n):
+            f[g[i]] = i
+        return f
 
     
     # Methods for atomic changes (grow-by-one)
@@ -907,6 +933,274 @@ class Poset:
         k_independent = [num(k) for k in range(m)]
         return reduce(lambda a,b: a*b, k_independent, 1)
     
+
+    # Methods for high level relatives of self 
+
+    @cached_property
+    def meta_P(self):
+        'subposet of join irreducibles'
+        assert self.is_distributive
+        return self.subgraph(self.irreducibles)
+
+    @cached_property
+    def meta_L(self):
+        'distributive lattice of the closure of downsets of self'
+        n = self.n
+        leq = self.leq
+        labels = self.labels
+        P_down = [frozenset(i for i in range(n) if leq[i,j]) for j in range(n)]
+        P_layer = [set() for i in range(n+1)]
+        for s in P_down:
+            P_layer[len(s)].add(s)
+        def iter_diff(a):
+            n = len(a)
+            yield from ((a[i], a[j]) for i in range(n) for j in range(i+1,n))
+        E = []
+        layer = [None for i in range(n+1)]
+        layer[0] = set([frozenset()])
+        for k in range(n):
+            layer[k+1] = P_layer[k+1]
+            for u in P_layer[k+1]:
+                for below in layer[k]:
+                    if below <= u:
+                        E.append((below, u))
+            for u,v in iter_diff(list(layer[k])):
+                if u & v in layer[k-1]:
+                    above = u | v
+                    layer[k+1].add(above)
+                    E.append((v, above))
+                    E.append((u, above))
+        nodes = list(set(u for u,v in E) | set(v for u,v in E))
+        encode = {s:i for i,s in enumerate(nodes)}
+        children = [[] for i in range(len(nodes))]
+        for s,r in E:
+            children[encode[r]].append(encode[s])
+        label_of = lambda s: '{'+','.join(self._label(*sorted(s)))+'}'
+        labels = tuple(map(label_of, nodes))
+        return self.__class__.from_children(children, labels=labels)
+
+    def _label(self, *nodes):
+        return tuple(self.labels[x] for x in nodes)
+
+    def _meta_mat(self, F, leq_F):
+        n = self.n
+        leq = self.leq
+        m = len(F)
+        mat = np.zeros((m, m), dtype=bool)
+        for i in range(m):
+            for j in range(m):
+                mat[i,j] = leq_F(F[i], F[j])
+        mat.flags.writeable = False
+        return mat
+
+    @cached_property
+    def meta_F(self):
+        'lattice of join endomorphisms of self'
+        elems = list(map(tuple, self.iter_f_irreducibles_monotone_bottom()))
+        labels = tuple(','.join(self._label(*f)) for f in elems)
+        return self.__class__.from_lambda(elems, self._leq_F, labels=labels)
+
+    def _leq_F(self, f, g):
+        'natural order of the space of endomorphisms'
+        n = self.n
+        leq = self.leq
+        return all(leq[f[i],g[i]] for i in range(n))
+
+    @cached_property
+    def meta_JF(self):
+        'poset of functions that are join irreducibles in meta_F'
+        n = self.n
+        leq = self.leq
+        bot = self.bottom
+        J = self.irreducibles
+        f = lambda i,fi: tuple(bot if not leq[i,x] else fi for x in range(n))
+        elems = [f(i, fi) for i in J for fi in J]
+        labels = tuple(','.join(self._label(*f)) for f in elems)
+        return self.__class__.from_lambda(elems, self._leq_F, labels=labels)
+
+
+    @cached_property
+    def meta_PP(self):
+        'poset of meta_P upside down times meta_P'
+        'with labels showing homomorphism with meta_JF'
+        n = self.n
+        leq = self.leq
+        bot = self.bottom
+        J = self.irreducibles
+        elems = [(i, fi) for i in J for fi in J]
+        label_of = lambda i, fi: f'f({i})={fi}'
+        labels = tuple(label_of(*self._label(i,fi)) for i,fi in elems)
+        def f_leq(tup_i, tup_j):
+            i,fi = tup_i
+            j,fj = tup_j
+            return leq[j, i] and leq[fi, fj]
+        return self.__class__.from_lambda(elems, f_leq, labels=labels)
+
+    # Constructors and operations between lattices
+    
+    @classmethod
+    def total(cls, n):
+        'total order of n elements'
+        G = [[i-1] if i>0 else [] for i in range(n)]
+        return cls.from_children(G)
+
+    def __invert__(self):
+        'flip the poset upside down'
+        return self.__class__.from_children(self.parents)
+
+    def __add__(self, other):
+        if isinstance(other, int):
+            out = self.add_number(other)
+        else:
+            out = self.add_poset(other)
+        return out
+
+    def __mul__(self, other):
+        if isinstance(other, int):
+            out = self.mul_number(other)
+        else:
+            out = self.mul_poset(other)
+        return out
+
+    def __or__(self, other):
+        if isinstance(other, int):
+            out = self.or_number(other)
+        else:
+            out = self.or_poset(other)
+        return out
+
+    def __and__(self, other):
+        if isinstance(other, int):
+            out = self.and_number(other)
+        else:
+            out = self.and_poset(other)
+        return out
+
+
+    def add_poset(self, other):
+        'stack other above self and connect all self.tops with all other.bottoms'
+        n = self.n
+        m = other.n
+        is_top = self.leq.sum(axis=1)==1
+        is_bottom = other.leq.sum(axis=0)==1
+        tops = [i for i in range(n) if is_top[i]]
+        bottoms = [i for i in range(m) if is_bottom[i]]
+        C = [
+            *([j for j in Ci] for Ci in self.children),
+            *([j+n for j in Ci] for Ci in other.children),
+        ]
+        for i in tops:
+            for j in bottoms:
+                C[j+n].append(i)
+        return self.__class__.from_children(C)
+
+    def mul_poset(self, other):
+        'poset standard multiplication'
+        n = self.n
+        m = other.n
+        G = [[] for i in range(n*m)]
+        for i in range(n):
+            for j in range(m):
+                for k in self.children[i]:
+                    G[i+j*n].append(k+j*n)
+                for k in other.children[j]:
+                    G[i+j*n].append(i+k*n)
+        return self.__class__.from_children(G)
+
+    def or_poset(self, other):
+        'put other at the right of self without connections'
+        n = self.n
+        C = [
+            *([j for j in Ci] for Ci in self.children),
+            *([j+n for j in Ci] for Ci in other.children),
+        ]
+        return self.__class__.from_children(C)
+
+    def and_poset(self, other):
+        'stack other above self and put self.tops * other.bottoms inbetween'
+        n = self.n
+        m = other.n
+        is_top = self.leq.sum(axis=1)==1
+        is_bottom = other.leq.sum(axis=0)==1
+        tops = [i for i in range(n) if is_top[i]]
+        non_tops = [i for i in range(n) if ~is_top[i]]
+        bottoms = [i for i in range(m) if is_bottom[i]]
+        non_bottoms = [i for i in range(m) if ~is_bottom[i]]
+        nodes = [
+            *((-1,i) for i in non_tops),
+            *((i,j) for i in tops for j in bottoms),
+            *((n,j) for j in non_bottoms),
+        ]
+        C = {v:[] for v in nodes}
+        for i in non_tops:
+            for j in self.children[i]:
+                C[(-1,i)].append((-1,j))
+        for i in non_bottoms:
+            for j in other.parents[i]:
+                C[(n,j)].append((n,i))
+        for i in tops:
+            for j in self.children[i]:
+                for k in bottoms:
+                    C[(i,k)].append((-1,j))
+        for i in bottoms:
+            for j in other.parents[i]:
+                for k in tops:
+                    C[(n,j)].append((k,i))
+        f = {node:i for i,node in enumerate(sorted(nodes))}
+        children = [[] for i in range(len(f))]
+        for i,Ci in C.items():
+            for j in Ci:
+                children[f[i]].append(f[j])
+        return self.__class__.from_children(children)
+
+    def add_number(self, n):
+        'add self with itself n times'
+        assert isinstance(n, int) and n>=0, f'{n}'
+        if n==0:
+            out = self.__class__.total(0)
+        else:
+            out = self._operation_number(lambda a,b: a+b, n)
+        return out
+
+    def mul_number(self, n):
+        'multiply self with itself n times'
+        assert isinstance(n, int) and n>=0, f'{n}'
+        if n==0:
+            out = self.__class__.total(1)
+        else:
+            out = self._operation_number(lambda a,b: a*b, n)
+        return out
+
+    def or_number(self, n):
+        'OR operation of self with itself n times'
+        assert isinstance(n, int) and n>=0, f'{n}'
+        if n==0:
+            out = self.__class__.total(0)
+        else:
+            out = self._operation_number(lambda a,b: a|b, n)
+        return out
+
+    def and_number(self, n):
+        'AND operation of self with itself n times'
+        assert isinstance(n, int) and n>=0, f'{n}'
+        if n==0:
+            out = self.__class__.total(1)
+        else:
+            out = self._operation_number(lambda a,b: a&b, n)
+        return out
+    
+    def _operation_number(self, operation, n):
+        'operate self with itself n>=1 times. operation must be associative'
+        if n==1:
+            out = self
+        else:
+            out = self._operation_number(operation, n//2)
+            out = operation(out, out)
+            if n%2==1:
+                out = operation(out, self)
+        return out
+
+
     
     
     # Testing methods
@@ -1087,171 +1381,6 @@ class Poset:
         E = [(f[b], f[a]) for a in sets for b in sets if a < b]
         return self.__class__.from_down_edges(len(sets), E)
 
-    # Constructors and operations between lattices
-    
-    @classmethod
-    def total(cls, n):
-        'total order of n elements'
-        G = [[i-1] if i>0 else [] for i in range(n)]
-        return cls.from_children(G)
-
-    def __invert__(self):
-        'flip the poset upside down'
-        return self.__class__.from_children(self.parents)
-
-    def __add__(self, other):
-        if isinstance(other, int):
-            out = self.add_number(other)
-        else:
-            out = self.add_poset(other)
-        return out
-
-    def __mul__(self, other):
-        if isinstance(other, int):
-            out = self.mul_number(other)
-        else:
-            out = self.mul_poset(other)
-        return out
-
-    def __or__(self, other):
-        if isinstance(other, int):
-            out = self.or_number(other)
-        else:
-            out = self.or_poset(other)
-        return out
-
-    def __and__(self, other):
-        if isinstance(other, int):
-            out = self.and_number(other)
-        else:
-            out = self.and_poset(other)
-        return out
-
-
-    def add_poset(self, other):
-        'stack other above self and connect all self.tops with all other.bottoms'
-        n = self.n
-        m = other.n
-        is_top = self.leq.sum(axis=1)==1
-        is_bottom = other.leq.sum(axis=0)==1
-        tops = [i for i in range(n) if is_top[i]]
-        bottoms = [i for i in range(m) if is_bottom[i]]
-        C = [
-            *([j for j in Ci] for Ci in self.children),
-            *([j+n for j in Ci] for Ci in other.children),
-        ]
-        for i in tops:
-            for j in bottoms:
-                C[j+n].append(i)
-        return self.__class__.from_children(C)
-
-    def mul_poset(self, other):
-        'poset standard multiplication'
-        n = self.n
-        m = other.n
-        G = [[] for i in range(n*m)]
-        for i in range(n):
-            for j in range(m):
-                for k in self.children[i]:
-                    G[i+j*n].append(k+j*n)
-                for k in other.children[j]:
-                    G[i+j*n].append(i+k*n)
-        return self.__class__.from_children(G)
-
-    def or_poset(self, other):
-        'put other at the right of self without connections'
-        n = self.n
-        C = [
-            *([j for j in Ci] for Ci in self.children),
-            *([j+n for j in Ci] for Ci in other.children),
-        ]
-        return self.__class__.from_children(C)
-
-    def and_poset(self, other):
-        'stack other above self and put self.tops * other.bottoms inbetween'
-        n = self.n
-        m = other.n
-        is_top = self.leq.sum(axis=1)==1
-        is_bottom = other.leq.sum(axis=0)==1
-        tops = [i for i in range(n) if is_top[i]]
-        non_tops = [i for i in range(n) if ~is_top[i]]
-        bottoms = [i for i in range(m) if is_bottom[i]]
-        non_bottoms = [i for i in range(m) if ~is_bottom[i]]
-        nodes = [
-            *((-1,i) for i in non_tops),
-            *((i,j) for i in tops for j in bottoms),
-            *((n,j) for j in non_bottoms),
-        ]
-        C = {v:[] for v in nodes}
-        for i in non_tops:
-            for j in self.children[i]:
-                C[(-1,i)].append((-1,j))
-        for i in non_bottoms:
-            for j in other.parents[i]:
-                C[(n,j)].append((n,i))
-        for i in tops:
-            for j in self.children[i]:
-                for k in bottoms:
-                    C[(i,k)].append((-1,j))
-        for i in bottoms:
-            for j in other.parents[i]:
-                for k in tops:
-                    C[(n,j)].append((k,i))
-        f = {node:i for i,node in enumerate(sorted(nodes))}
-        children = [[] for i in range(len(f))]
-        for i,Ci in C.items():
-            for j in Ci:
-                children[f[i]].append(f[j])
-        return self.__class__.from_children(children)
-
-    def add_number(self, n):
-        'add self with itself n times'
-        assert isinstance(n, int) and n>=0, f'{n}'
-        if n==0:
-            out = self.__class__.total(0)
-        else:
-            out = self._operation_number(lambda a,b: a+b, n)
-        return out
-
-    def mul_number(self, n):
-        'multiply self with itself n times'
-        assert isinstance(n, int) and n>=0, f'{n}'
-        if n==0:
-            out = self.__class__.total(1)
-        else:
-            out = self._operation_number(lambda a,b: a*b, n)
-        return out
-
-    def or_number(self, n):
-        'OR operation of self with itself n times'
-        assert isinstance(n, int) and n>=0, f'{n}'
-        if n==0:
-            out = self.__class__.total(0)
-        else:
-            out = self._operation_number(lambda a,b: a|b, n)
-        return out
-
-    def and_number(self, n):
-        'AND operation of self with itself n times'
-        assert isinstance(n, int) and n>=0, f'{n}'
-        if n==0:
-            out = self.__class__.total(1)
-        else:
-            out = self._operation_number(lambda a,b: a&b, n)
-        return out
-    
-    def _operation_number(self, operation, n):
-        'operate self with itself n>=1 times. operation must be associative'
-        if n==1:
-            out = self
-        else:
-            out = self._operation_number(operation, n//2)
-            out = operation(out, out)
-            if n%2==1:
-                out = operation(out, self)
-        return out
-
-
 
     # Unclassified methods that will probably dissapear in the future
     
@@ -1287,3 +1416,45 @@ class Poset:
         #examples['tower-crane'] = 
         return examples
 
+
+
+    @cached_property
+    def num_f_monotone_J_to_self(self):
+        J = self.poset_J
+        return sum(1 for _ in J.iter_f_monotone_to(self))
+
+    @cached_property
+    def num_f_strict_J_to_self(self):
+        J = self.poset_J
+        return sum(1 for _ in J.iter_f_strict_to(self))
+
+    @cached_property
+    def num_f_strict_total_J_to_self(self):
+        J = self.poset_J
+        return sum(1 for _ in J.iter_f_strict_total_to(self))
+
+    @cached_property
+    def num_f_strict_J_to_total(self):
+        J = self.poset_J
+        T = self.__class__.total(J.n)
+        return sum(1 for _ in J.iter_f_strict_to(T))
+
+    @cached_property
+    def num_paths_matrix(self):
+        B = C = self.child.astype(int)
+        A = np.zeros_like(B)
+        A[np.diag_indices_from(A)] = 1
+        while C.sum():
+            A = A + C
+            C = np.matmul(C, B)
+        return A
+
+    @cached_property
+    def num_ace(self):
+        d = self.dist
+        A = self.num_paths_matrix
+        bot = A[self.bottom, :]
+        top = A[:, self.top]
+        bot_top = A[self.bottom, self.top]
+        middle = ((d==2) * (bot[:,None]*top[None,:])).sum()
+        return 2*bot_top + (middle if self.n>2 else 0)

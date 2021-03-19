@@ -1090,13 +1090,11 @@ class Poset:
 
     @cached_property
     def meta_PP(self):
-        'poset of meta_P upside down times meta_P'
-        'with labels showing homomorphism with meta_JF'
+        'poset of self upside down times self'
+        'with labels showing homomorphism with meta_L.meta_JF'
         n = self.n
         leq = self.leq
-        bot = self.bottom
-        J = self.irreducibles
-        elems = [(i, fi) for i in J for fi in J]
+        elems = [(i, fi) for i in range(n) for fi in range(n)]
         label_of = lambda i, fi: f'f({i})={fi}'
         labels = tuple(label_of(*self._label(i,fi)) for i,fi in elems)
         def f_leq(tup_i, tup_j):
@@ -1162,6 +1160,7 @@ class Poset:
         'poset standard multiplication'
         n = self.n
         m = other.n
+        labels = [None]*(n*m)
         G = [[] for i in range(n*m)]
         for i in range(n):
             for j in range(m):
@@ -1169,8 +1168,7 @@ class Poset:
                     G[i+j*n].append(k+j*n)
                 for k in other.children[j]:
                     G[i+j*n].append(i+k*n)
-        l = lambda i,j: f'({self.labels[i]},{other.labels[j]})'
-        labels = [l(i,j) for i in range(n) for j in range(m)]
+                labels[i+j*n] = f'({self.labels[i]},{other.labels[j]})'
         return self.__class__.from_children(G, labels=labels)
 
     def or_poset(self, other):

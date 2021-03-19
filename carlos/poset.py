@@ -154,9 +154,10 @@ class Poset:
     
     def show(self, f=None, as_edges=False, save=None, labels=None):
         'Use graphviz to display or save self (or the endomorphism f if given)'
+        
         g = self.graphviz(f, as_edges, labels)
         png = g.create_png()
-        
+
         if save is None:
             from IPython.display import display
             from IPython.display import Image
@@ -261,10 +262,15 @@ class Poset:
     
     @classmethod
     def from_down_edges(cls, n, edges):
-        'Poset of size n that respect all edges (ancestor, descendant)'
+        'Poset of size n that respects all edges (ancestor, descendant)'
+        return cls.from_up_edges(n, [(j,i) for i,j in edges])
+    
+    @classmethod
+    def from_up_edges(cls, n, edges):
+        'Poset of size n that respects all edges (descendant, ancestor)'
         leq = np.zeros((n,n), dtype=bool)
         leq[np.diag_indices_from(leq)] = True
-        for anc, des in edges:
+        for des, anc in edges:
             leq[des, anc] = True
         leq = np.matmul(leq, leq)
         leq.flags.writeable = False
@@ -292,6 +298,13 @@ class Poset:
             return False # transitivity
         return True
     
+    @cached_property
+    def heights(self):
+        'Array of distance from i down to any bottom'
+        dist = self.dist
+        bottoms = self.bottoms
+        return tuple(np.min([dist[i,:] for i in bottoms], axis=0))
+
     @cached_property
     def dist(self):
         return self.__class__.child_to_dist(self.child)
@@ -339,7 +352,19 @@ class Poset:
                 if indeg[v]==0:
                     q.append(v)
         len(topo)==n or self.throw('There is a cycle')
-        return topo
+        return tuple(topo)
+
+    @cached_property
+    def toporank(self):
+        return tuple(self.__class__.inverse_permutation(self.toposort))
+
+    @classmethod
+    def inverse_permutation(self, perm):
+        n = len(perm)
+        rank = [None]*n
+        for i in range(n):
+            rank[perm[i]] = i
+        return rank
     
 
     @cached_property
@@ -404,24 +429,48 @@ class Poset:
             leq[x,glb] or self.throw(f'Not a lattice: {i} glb {j} => {glb} or {x}')
     
     @cached_property
-    def bottom(self):
-        '''bottom element of the Poset. Throws if not present'''
+    def bottoms(self):
+        'bottom elements of the poset'
         n = self.n
         nleq = self.leq.sum(axis=0)
-        zeros = [i for i in range(n) if nleq[i]==1]
-        zeros or self.throw(f'No bottom found')
-        len(zeros)==1 or self.throw(f'Multiple bottoms found: {zeros}')
-        return zeros[0]
+        return [i for i in range(n) if nleq[i]==1]
+    
+    @cached_property
+    def non_bottoms(self):
+        'non-bottom elements of the poset'
+        n = self.n
+        nleq = self.leq.sum(axis=0)
+        return [i for i in range(n) if nleq[i]>1]
+    
+    @cached_property
+    def tops(self):
+        'top elements of the poset'
+        n = self.n
+        nleq = self.leq.sum(axis=0)
+        return [i for i in range(n) if nleq[i]==n]
+
+    @cached_property
+    def non_tops(self):
+        'non-top elements of the poset'
+        n = self.n
+        nleq = self.leq.sum(axis=0)
+        return [i for i in range(n) if nleq[i]<n]
+
+    @cached_property
+    def bottom(self):
+        'unique bottom element of the Poset. Throws if not present'
+        bottoms = self.bottoms
+        bottoms or self.throw(f'No bottom found')
+        len(bottoms)==1 or self.throw(f'Multiple bottoms found: {bottoms}')
+        return bottoms[0]
     
     @cached_property
     def top(self):
-        '''top element of the Poset. Throws if not present'''
-        n = self.n
-        nleq = self.leq.sum(axis=0)
-        zeros = [i for i in range(n) if nleq[i]==n]
-        zeros or self.throw(f'No top found')
-        len(zeros)==1 or self.throw(f'Multiple bottoms found: {zeros}')
-        return zeros[0]
+        'unique top element of the Poset. Throws if not present'
+        tops = self.tops
+        tops or self.throw(f'No top found')
+        len(tops)==1 or self.throw(f'Multiple tops found: {tops}')
+        return tops[0]
     
     @cached_property
     def irreducibles(self):
@@ -532,11 +581,7 @@ class Poset:
     @cached_property
     def canonical(self):
         'representant of the equivalence class of self under reindex relation'
-        if self.is_canonical:
-            representant = self
-        else:
-            representant = self.reindex(self.canonical_index)
-        return representant
+        return self.reindex(self.canonical_index)
     
     @cached_property
     def is_canonical(self):
@@ -546,17 +591,41 @@ class Poset:
     @cached_property
     def canonical_index(self):
         'index that transforms self into the representant'
-        n = self.n
-        leq = self.leq
         h = self.hash_elems
         l = self.labels
-        def key(i):
-            return (dist[0,i], leq[:,i].sum())
-        g = sorted(range(n), key=lambda i: (leq[:,i].sum(), h[i], l[i]))
+        return self._make_index(lambda i: (h[i], l[i], i))
+    
+    def _make_index(self, key):
+        n = self.n
+        g = sorted(range(n), key=key)
         f = list(range(n))
         for i in range(n):
             f[g[i]] = i
         return f
+
+    @cached_property
+    def enumerated(self):
+        'equivalent poset with simple enumerated labels and stable order'
+        n = self.n
+        group_by = {h:[] for h in range(n)}
+        for i in range(n):
+            group_by[self.heights[i]].append(i)
+        topo = []
+        rank = [-1]*n
+        G = self.parents
+        R = self.children
+        nleq = self.leq.sum(axis=0)
+        ngeq = self.leq.sum(axis=1)
+        order = list(zip(nleq, ngeq, self.hash_elems, self.labels, range(n)))
+        def key(i):
+            t = tuple(sorted((rank[i] for i in R[i])))
+            return (t, len(G[i]), order[i])
+        for h in range(n):
+            for i in sorted(group_by[h], key=key):
+                rank[i] = len(topo)
+                topo.append(i)
+        leq = self.reindex(rank).leq
+        return self.__class__(leq, labels=None)
 
     
     # Methods for atomic changes (grow-by-one)
@@ -1046,7 +1115,7 @@ class Poset:
 
     def __invert__(self):
         'flip the poset upside down'
-        return self.__class__.from_children(self.parents)
+        return self.__class__.from_children(self.parents, labels=self.labels)
 
     def __add__(self, other):
         if isinstance(other, int):
@@ -1080,17 +1149,12 @@ class Poset:
     def add_poset(self, other):
         'stack other above self and connect all self.tops with all other.bottoms'
         n = self.n
-        m = other.n
-        is_top = self.leq.sum(axis=1)==1
-        is_bottom = other.leq.sum(axis=0)==1
-        tops = [i for i in range(n) if is_top[i]]
-        bottoms = [i for i in range(m) if is_bottom[i]]
         C = [
             *([j for j in Ci] for Ci in self.children),
             *([j+n for j in Ci] for Ci in other.children),
         ]
-        for i in tops:
-            for j in bottoms:
+        for i in self.tops:
+            for j in other.bottoms:
                 C[j+n].append(i)
         return self.__class__.from_children(C)
 
@@ -1105,7 +1169,9 @@ class Poset:
                     G[i+j*n].append(k+j*n)
                 for k in other.children[j]:
                     G[i+j*n].append(i+k*n)
-        return self.__class__.from_children(G)
+        l = lambda i,j: f'({self.labels[i]},{other.labels[j]})'
+        labels = [l(i,j) for i in range(n) for j in range(m)]
+        return self.__class__.from_children(G, labels=labels)
 
     def or_poset(self, other):
         'put other at the right of self without connections'
@@ -1119,32 +1185,25 @@ class Poset:
     def and_poset(self, other):
         'stack other above self and put self.tops * other.bottoms inbetween'
         n = self.n
-        m = other.n
-        is_top = self.leq.sum(axis=1)==1
-        is_bottom = other.leq.sum(axis=0)==1
-        tops = [i for i in range(n) if is_top[i]]
-        non_tops = [i for i in range(n) if ~is_top[i]]
-        bottoms = [i for i in range(m) if is_bottom[i]]
-        non_bottoms = [i for i in range(m) if ~is_bottom[i]]
         nodes = [
-            *((-1,i) for i in non_tops),
-            *((i,j) for i in tops for j in bottoms),
-            *((n,j) for j in non_bottoms),
+            *((-1,i) for i in self.non_tops),
+            *((i,j) for i in self.tops for j in other.bottoms),
+            *((n,j) for j in other.non_bottoms),
         ]
         C = {v:[] for v in nodes}
-        for i in non_tops:
+        for i in self.non_tops:
             for j in self.children[i]:
                 C[(-1,i)].append((-1,j))
-        for i in non_bottoms:
+        for i in other.non_bottoms:
             for j in other.parents[i]:
                 C[(n,j)].append((n,i))
-        for i in tops:
+        for i in self.tops:
             for j in self.children[i]:
-                for k in bottoms:
+                for k in other.bottoms:
                     C[(i,k)].append((-1,j))
-        for i in bottoms:
+        for i in other.bottoms:
             for j in other.parents[i]:
-                for k in tops:
+                for k in self.tops:
                     C[(n,j)].append((k,i))
         f = {node:i for i,node in enumerate(sorted(nodes))}
         children = [[] for i in range(len(f))]

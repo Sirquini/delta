@@ -1,4 +1,3 @@
-from guide import IMPLs
 import random
 import os
 import sys
@@ -9,7 +8,6 @@ from itertools import permutations
 from time import perf_counter
 
 from lattice import Lattice
-import experiments
 
 def calculate_lubs(lattice):
     """Calculates the matrix of Lower Upper Bounds for the `lattice`."""
@@ -1057,50 +1055,6 @@ def run_test_case(fn, lattice, test_functions):
     fn_time = perf_counter() - fn_time
     return fn_time, result
 
-def run_square():
-    experiments.run(lattice_square(), n_tests=1000, n_functions=4, fns_file=relative_path("generated","sf_square.in"))
-
-def run_failling_foo():
-    """Test-cases in which delta_foo used to fail."""
-    from lattice import process_file
-    
-    lattices = process_file("distributive_lattices.py")
-    test_functions = [(0, 5, 3, 7, 3, 3, 7, 7),
-        (0, 7, 7, 7, 0, 7, 7, 7),
-        (0, 3, 4, 7, 6, 6, 7, 7)]
-
-    experiments.run(lattices[4698136515449058355], test_functions=test_functions, fns_file=relative_path("generated", "sf_4698136515449058355.in"))
-
-    test_functions = [(0, 0, 7, 7, 9, 9, 9, 9, 7, 9),
-        (0, 3, 3, 3, 1, 3, 3, 3, 9, 9),
-        (0, 7, 1, 7, 8, 8, 9, 9, 7, 9)]
-
-    experiments.run(lattices[-286441500945297568], test_functions=test_functions, fns_file=relative_path("generated", "sf_-286441500945297568.in"))
-
-    test_functions = [(0, 5, 6, 6, 8, 3, 8, 8, 8, 8),
-        (0, 5, 4, 9, 9, 9, 9, 9, 9, 9),
-        (0, 8, 5, 8, 8, 0, 5, 8, 8, 8),
-        (0, 2, 8, 8, 8, 7, 8, 8, 8, 8),
-        (0, 5, 4, 9, 9, 5, 9, 5, 9, 9)]
-
-    experiments.run(lattices[8013726431884705816], test_functions=test_functions, fns_file=relative_path("generated", "sf_8013726431884705816.in"))
-    
-    test_functions = [(0, 8, 1, 8, 9, 5, 7, 8, 8, 9),
-        (0, 4, 1, 4, 4, 9, 9, 9, 9, 9),
-        (0, 6, 9, 9, 9, 3, 9, 8, 9, 9),
-        (0, 7, 8, 8, 9, 1, 8, 7, 8, 9),
-        (0, 1, 0, 1, 1, 9, 9, 9, 9, 9)]
-
-    experiments.run(lattices[8013726431884705816], test_functions=test_functions, fns_file=relative_path("generated", "sf_8013726431884705816.in"))
-
-    test_functions = [(0, 4, 8, 9, 9, 9, 9, 9, 9, 9),
-        (0, 4, 7, 9, 9, 8, 8, 9, 9, 9),
-        (0, 2, 4, 4, 9, 1, 4, 3, 4, 9),
-        (0, 7, 4, 9, 9, 8, 9, 8, 9, 9),
-        (0, 5, 2, 6, 8, 4, 4, 9, 9, 9)]
-
-    experiments.run(lattices[8013726431884705816], test_functions=test_functions, fns_file=relative_path("generated", "sf_8013726431884705816.in"))
-
 def run_lattice_implementations():
     from lattice import lattice_from_covers, Lattice
     covers = [[], [0], [0], [0], [2, 3, 1], [0], [2], [4, 5, 6]]
@@ -1144,6 +1098,7 @@ def run_lattice_implementations():
     print("Legacy implementation IMPLs time:", legacy_time)
 
     # Global used by legacy delta_ast_ implementations
+    global IMPLs
     IMPLs = legacy_impls 
 
     # The new implementation encapsulates the LUBs and GLBs as part
@@ -1340,8 +1295,6 @@ def all_space_functions_diagram():
             lattice.diagram(sf).render(fns_file_path, cleanup=True)        
 
 if __name__ == "__main__":
-    # run_square()
-    # run_failling_foo()
     # run_lattice_implementations()
     # run_random_space_functions()
     # run_space_projection()

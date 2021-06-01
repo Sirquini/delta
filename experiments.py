@@ -1,9 +1,8 @@
 import os
 import sys
 import random
-import json
 from time import perf_counter
-from itertools import product, combinations, permutations
+from itertools import combinations
 
 from lattice import Lattice, powerset_lattice, delta_foo, delta_ast_partition, delta_partition
 
@@ -68,7 +67,7 @@ def write_test_results_csv(name, results):
 # Utility functions for running tests.
 # #######################################
 
-from delta import TestResults, Delta, run_test_case, delta_n, random_space_function, all_space_functions, delta_plus_jies 
+from delta import TestResults, Delta, lattice_square, run_test_case, delta_n, random_space_function, all_space_functions, delta_plus_jies 
 from generation import progress_bar
 
 class DeltaTest:
@@ -655,6 +654,50 @@ def run_arbitrary_lattices(sizes, fixed_lattice=False):
     elapsed_time = perf_counter() - elapsed_time
     eprint(" Done.\nRan for {} seconds.".format(elapsed_time))
     write_test_results_csv("results-{}.csv".format(start_time), results)
+
+def run_square():
+    run(lattice_square(), n_tests=1000, n_functions=4, fns_file=from_rel_path("generated","sf_square.in"))
+
+def run_failling_foo():
+    """Test-cases in which delta_foo used to fail."""
+    from lattice import process_file
+    
+    lattices = process_file("distributive_lattices.py")
+    test_functions = [(0, 5, 3, 7, 3, 3, 7, 7),
+        (0, 7, 7, 7, 0, 7, 7, 7),
+        (0, 3, 4, 7, 6, 6, 7, 7)]
+
+    run(lattices[4698136515449058355], test_functions=test_functions, fns_file=from_rel_path("generated", "sf_4698136515449058355.in"))
+
+    test_functions = [(0, 0, 7, 7, 9, 9, 9, 9, 7, 9),
+        (0, 3, 3, 3, 1, 3, 3, 3, 9, 9),
+        (0, 7, 1, 7, 8, 8, 9, 9, 7, 9)]
+
+    run(lattices[-286441500945297568], test_functions=test_functions, fns_file=from_rel_path("generated", "sf_-286441500945297568.in"))
+
+    test_functions = [(0, 5, 6, 6, 8, 3, 8, 8, 8, 8),
+        (0, 5, 4, 9, 9, 9, 9, 9, 9, 9),
+        (0, 8, 5, 8, 8, 0, 5, 8, 8, 8),
+        (0, 2, 8, 8, 8, 7, 8, 8, 8, 8),
+        (0, 5, 4, 9, 9, 5, 9, 5, 9, 9)]
+
+    run(lattices[8013726431884705816], test_functions=test_functions, fns_file=from_rel_path("generated", "sf_8013726431884705816.in"))
+    
+    test_functions = [(0, 8, 1, 8, 9, 5, 7, 8, 8, 9),
+        (0, 4, 1, 4, 4, 9, 9, 9, 9, 9),
+        (0, 6, 9, 9, 9, 3, 9, 8, 9, 9),
+        (0, 7, 8, 8, 9, 1, 8, 7, 8, 9),
+        (0, 1, 0, 1, 1, 9, 9, 9, 9, 9)]
+
+    run(lattices[8013726431884705816], test_functions=test_functions, fns_file=from_rel_path("generated", "sf_8013726431884705816.in"))
+
+    test_functions = [(0, 4, 8, 9, 9, 9, 9, 9, 9, 9),
+        (0, 4, 7, 9, 9, 8, 8, 9, 9, 9),
+        (0, 2, 4, 4, 9, 1, 4, 3, 4, 9),
+        (0, 7, 4, 9, 9, 8, 9, 8, 9, 9),
+        (0, 5, 2, 6, 8, 4, 4, 9, 9, 9)]
+
+    run(lattices[8013726431884705816], test_functions=test_functions, fns_file=from_rel_path("generated", "sf_8013726431884705816.in"))
 
 if __name__ == "__main__":
     # run_full_tests(size_limit=10)

@@ -91,6 +91,45 @@ class TestLatticeClass(unittest.TestCase):
         expected = [1, 2, 3, 5, 6]
         self.assertEqual(actual, expected)
 
+    def test_join_irreducibles(self):
+            actual = self.lattice.join_irreducibles
+            expected = [1, 2, 3, 5, 6]
+            self.assertEqual(actual, expected)
+    
+    def test_join_irreducibles_with_covers(self):
+            # Trigers faster join-irreducibles generation
+            self.lattice.covers
+
+            actual = self.lattice.join_irreducibles
+            expected = [1, 2, 3, 5, 6]
+            self.assertEqual(actual, expected)
+
+    def test_covers(self):
+        actual = self.lattice.covers
+        expected = [[], [0], [0], [0], [1, 2, 3], [0], [2], [4, 5, 6]]
+        self.assertEqual(actual, expected)
+
+        lattice = [
+            [1, 0, 0, 0, 0, 0, 0, 0],
+            [1, 1, 0, 0, 0, 0, 0, 0],
+            [1, 0, 1, 0, 0, 0, 0, 0],
+            [1, 1, 1, 1, 0, 0, 0, 0],
+            [1, 0, 0, 0, 1, 0, 0, 0],
+            [1, 1, 0, 0, 1, 1, 0, 0],
+            [1, 0, 1, 0, 1, 0, 1, 0],
+            [1, 1, 1, 1, 1, 1, 1, 1]
+        ]
+        actual = lat.Lattice(lattice).covers
+        expected = [[], [0], [0], [1, 2], [0], [1, 4], [2, 4], [3, 5, 6]]
+
+        self.assertEqual(actual, expected)
+    
+    def test_from_covers(self):
+        lattice = lat.Lattice.from_covers([[], [0], [0], [0], [1, 2, 3], [0], [2], [4, 5, 6]])
+        actual = lattice.lattice
+        expected = self.lattice.lattice
+        self.assertEqual(actual, expected)
+
     def test_space_functions(self):
         self.lattice = lat.Lattice([
             [1, 0, 0, 0, 0, 0],

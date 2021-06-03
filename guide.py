@@ -1,6 +1,6 @@
 import random
 from delta import random_space_function
-from lattice import Lattice, lattice_from_covers, random_lattice, powerset_lattice, delta_foo
+from lattice import Lattice, random_lattice, powerset_lattice, delta_foo
 from generation import distributive_lattice
 
 # ###########
@@ -23,17 +23,16 @@ from generation import distributive_lattice
 # obtain the corresponding Group Space Function Delta_I.
 
 covers = random_lattice(7, 0.95) # 0.95 seems to generate good random lattices.
-lattice = Lattice(lattice_from_covers(covers))
+lattice = Lattice.from_covers(covers)
 sf = random.sample(lattice.space_functions, 3)
 elem = [lattice.lub(f) for f in zip(*sf)]
 delta = delta_foo(lattice, sf)
 
 # Explanation:
 # - We obtain the `covers` representation of a random 7-node lattice.
-# - Since the `Lattice` class uses a matrix representation, and not covers, 
-#   we use the `lattice_from_covers` function to transform from one
-#   representation to the other.
-# - Now we create our `lattice` from the `Lattice` class, which gives us access
+# - Since the `Lattice` class uses a matrix representation, and not covers,
+#   we use the `from_covers` class method to use the covers representation.
+# - This creates our `lattice` from the `Lattice` class, which gives us access
 #   to basic lattice operations, like obtaining the least upper bound of a list
 #   of values, Heyting implication, atoms, etc.
 # - We use the `delta_foo` function from lattice.py that receives a `Lattice`
@@ -201,7 +200,7 @@ def setup_enviroment(lattice):
 # Since computing all the space functions of a lattice is an expesive process
 # experimental.py provides the `NxLattice` class, with the same inteface as the
 # `Lattice` class, but allows for parallel computation. Can be used where
-# `Lattice` is used.
+# `Lattice` is used. Currently the interface is not in sync with `Lattice`.
 
 # ###########
 # Experiments
@@ -209,7 +208,7 @@ def setup_enviroment(lattice):
 
 # Almost all the experiments ran before are located in delta.py and prefixed
 # with the word `run`, e.g. `run_space_functions_for_m` and can act as
-# examples.
+# examples. A lot of them are now on experiments.py.
 
 # #############
 # More Examples

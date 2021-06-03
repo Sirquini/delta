@@ -837,7 +837,7 @@ def delta_plus_jies(lattice: Lattice, functions, jie_s=None):
     if len(functions) == 1:
         return functions[0]
     if jie_s is None:
-        jie_s = lattice.join_irreducible_elements()
+        jie_s = lattice.join_irreducibles
     n = len(lattice)
     result = [None for _ in range(n)]
     for j in jie_s:
@@ -1140,7 +1140,7 @@ def run_lattice_implementations():
 def run_random_space_functions():
     """Used for testing the random generation of space functions for a lattice.
     """
-    from lattice import Lattice, lattice_from_covers
+    from lattice import Lattice
 
     covers = [[], [0], [0], [1], [1, 2], [2], [3, 4], [4], [4, 5], [6, 7], [6, 8], [7, 8], [9], [9, 10, 11], [11], [12, 13], [13, 14], [15, 16]]
     # covers = [[], [0], [0], [1], [1, 2], [2], [3], [3, 4], [4, 5], [5], [5], [6, 7, 8, 9, 10]]
@@ -1149,11 +1149,10 @@ def run_random_space_functions():
     # covers = [[], [0], [1], [1], [2,3]]
     # covers = [[], [0], [0], [0], [1, 2, 3]]
     print("* Using lattice({}): {}".format(len(covers), covers))
-    lattice_matrix = lattice_from_covers(covers)
-    lattice = Lattice(lattice_matrix)
+    lattice = Lattice.from_covers(covers)
 
     print("\nAtoms for this lattice:", lattice.atoms())
-    print("Join-irreducible elements for this lattice:", lattice.join_irreducible_elements())
+    print("Join-irreducible elements for this lattice:", lattice.join_irreducibles)
     print("[i] Generating 100 random space functions.\n")
     space_fns = [random_space_function(lattice) for _ in range(100)]
 
@@ -1174,14 +1173,14 @@ def run_space_projection():
     + `i_join_projection()`
     + `space_projection()`
     """
-    from lattice import Lattice, lattice_from_covers
+    from lattice import Lattice
     # 0 = bottom
     # 1 = a
     # 2 = b
     # 3 = top 
     covers = [[], [0], [0], [1, 2]]
     space_functions = [(0, 2, 1, 3), (0, 3, 2, 3)]
-    lattice = Lattice(lattice_from_covers(covers))
+    lattice = Lattice.from_covers(covers)
 
     # Generate the necessary globals
     global LUBs, GLBs
@@ -1202,7 +1201,7 @@ def run_powerset_space_function_pairs():
     """Finds the pair of space functions such that the execution of delta_foo
     requires the maximum ammount of updates to the candidate_function.
     """
-    from lattice import Lattice, covers_from_lattice, powerset_lattice
+    from lattice import Lattice, powerset_lattice
     # ID of the lattice
     key = "power_4"
     # Read the lattice to test from
@@ -1226,7 +1225,7 @@ def run_powerset_space_function_pairs():
     max_updates = 0
     results = []
     print("* Using lattice `{}` ({} nodes)".format(key, len(lattice)))
-    print("* Covers:", covers_from_lattice(lattice.lattice))
+    print("* Covers:", lattice.covers)
     for pair in combinations(space_functions, 2):
         _, updates = probed_delta_foo(lattice.lattice, pair)
         if updates >= max_updates:

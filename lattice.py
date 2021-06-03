@@ -103,6 +103,9 @@ class Lattice:
             
         + `y` is an atom if `0` is covered by `y`
         + `x` is covered by `y` if `x < y` and `x <= z < y` implies `z = x`
+
+        The actual `covers` are only generated once, feel free
+        to call this method multiple times.
         """
         if self._covers is None:
             self._covers = covers_from_lattice(self.lattice)
@@ -167,7 +170,7 @@ class Lattice:
         graph = Digraph("Lattice",edge_attr={"arrowhead": "none"})
         for i in range(len(self)):
             graph.node(str(i))
-        for pos, nodes in enumerate(covers_from_lattice(self.lattice)):
+        for pos, nodes in enumerate(self.covers):
             for node in nodes:
                 graph.edge(str(pos), str(node))
         if space_function is not None:
@@ -295,7 +298,7 @@ def delta_ast_partition(lattice, functions):
     helper_cache = [[[None] * n for _ in range(n)] for _ in range(len(lattice))]
     return [partition_helper(lattice, functions, 0, n, c, helper_cache) for c in range(len(lattice))]
 
-def delta_partition(lattice, functions, jie_s=None):
+def delta_partition(lattice: Lattice, functions, jie_s=None):
     """Calculates Delta* for a set of `functions` over a `lattice`
     partitioning the set of functions and using a look-up table.
 
@@ -311,7 +314,7 @@ def delta_partition(lattice, functions, jie_s=None):
     n = len(functions)
     helper_cache = [[[None] * n for _ in range(n)] for _ in range(len(lattice))]
     if jie_s is None:
-        jie_s = lattice.join_irreducible_elements()
+        jie_s = lattice.join_irreducibles
     
     # Only call the recursive function for the join-irreducible elements
     result = [0 for _ in range(len(lattice))]
@@ -343,7 +346,7 @@ class FooContext:
         self.cross_references = [set() for _ in range(n)]
         self.falling_pairs = set()
 
-    def process(self, lattice, delta, u, v):
+    def process(self, lattice: Lattice, delta, u, v):
         """Sends the pair (u, v) to the set of conflicts (C), falling_pairs (F)
         or good_pairs (S), according to the property that holds for the pair.
         """
@@ -357,7 +360,7 @@ class FooContext:
         else:
             self.falling_pairs.add((u, v))
     
-    def check_supports(self, lattice, delta, u):
+    def check_supports(self, lattice: Lattice, delta, u):
         """Identifies all pairs of the form (u, x) that lost their support
         because of a change in delta(u). It adds (u, x) to the appropiate set
         of conflicts (C), or falling_pairs (F).
@@ -371,7 +374,7 @@ class FooContext:
                 self.cross_references[v].discard(u)
                 self.process(lattice, delta, u, v)
 
-def delta_foo(lattice, functions):
+def delta_foo(lattice: Lattice, functions):
     """Calculates Delta using the Greatest Lower Bound between all the `functions`
     and then fixes the resulting function until it's a valid space-function.
 
@@ -434,7 +437,7 @@ def delta_foo(lattice, functions):
                     context.conflicts.add(((x, y), z))
     return delta
 
-def delta_foo_cvrs(lattice, functions, covers=None):
+def delta_foo_cvrs(lattice: Lattice, functions, covers=None):
     """Calculates Delta using the Greatest Lower Bound between all the `functions`
     and then fixes the resulting function until it's a valid space-function.
 
@@ -453,7 +456,7 @@ def delta_foo_cvrs(lattice, functions, covers=None):
     context = FooContext(n)
     # Calculate the covers.
     if covers is None:
-        covers = covers_from_lattice(lattice.lattice)
+        covers = lattice.covers
     covers = [cvs + [node] for node, cvs in enumerate(covers)]
     # Calculate all initial conflicts in the candidate solution
     for cvs in covers:
@@ -524,7 +527,7 @@ def delta_foo_jies(lattice, fns, jie_s=None):
     context = FooContext(n)
     processed = set()
     if jie_s is None:
-        jie_s = lattice.join_irreducible_elements()
+        jie_s = lattice.join_irreducibles
 
     for a in range(len(jie_s)):
         for b in range(a):
@@ -582,7 +585,7 @@ def delta_foo_jies(lattice, fns, jie_s=None):
             delta[i] = lattice.lub(delta[j] for j in jie_s if lattice.lattice[i][j] == 1)
     return delta
 
-def delta_foo_cvrs_jies(lattice, fns, covers=None, jie_s=None):
+def delta_foo_cvrs_jies(lattice: Lattice, fns, covers=None, jie_s=None):
     """Calculates Delta using the Greatest Lower Bound between all the `functions`
     and then fixes the resulting function until it's a valid space-function.
 
@@ -603,12 +606,12 @@ def delta_foo_cvrs_jies(lattice, fns, covers=None, jie_s=None):
     
     # Calculate the covers.
     if covers is None:
-        covers = covers_from_lattice(lattice.lattice)
+        covers = lattice.covers
     covers = [cvs + [node] for node, cvs in enumerate(covers)]
     
     # Calculate the set of join-irredubles.
     if jie_s is None:
-        jie_s = lattice.join_irreducible_elements()
+        jie_s = lattice.join_irreducibles
     
     # Process only pairs of join-irreducibles from the same set of covers.
     for a in range(len(jie_s)):

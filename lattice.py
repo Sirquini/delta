@@ -32,10 +32,18 @@ class Lattice:
         # Lazy attributes
         self._space_functions = None
         self._impls = None
+        self._join_irreducibles = None
+        self._covers = None
 
     def __len__(self):
         """Returns the number of nodes in the lattice."""
         return len(self.lattice)
+    
+    @classmethod
+    def from_covers(cls, covers):
+        l = cls(lattice_from_covers(covers))
+        l._covers = covers
+        return l
 
     def is_lattice(self):
         """Returns True if the lattice is valid."""
@@ -88,6 +96,32 @@ class Lattice:
         """
         n = len(self)
         return [i for i in range(n) if all(i != 0 and (i == j or j == 0 or self.lattice[i][j] == 0) for j in range(n))]
+
+    @property
+    def covers(self):
+        """Returns a list of covers.
+            
+        + `y` is an atom if `0` is covered by `y`
+        + `x` is covered by `y` if `x < y` and `x <= z < y` implies `z = x`
+        """
+        if self._covers is None:
+            self._covers = covers_from_lattice(self.lattice)
+        return self._covers
+
+    @property
+    def join_irreducibles(self):
+        """Returns a list of all the join-irreducible elements in the lattice.
+
+        `x` is join-irreducible (or lub-irreducible) if:
+        + `x != 0`
+        + `a < x` and `b < x` imply `a lub b < x` for all `a` and `b`
+
+        The actual `join_irreducibles` are only generated once, feel free
+        to call this method multiple times.
+        """
+        if self._join_irreducibles is None:
+            self._join_irreducibles = self.join_irreducible_elements()
+        return self._join_irreducibles
 
     def join_irreducible_elements(self):
         """Returns a list of all the join-irreducible elements in the lattice.

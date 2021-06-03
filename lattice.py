@@ -131,8 +131,12 @@ class Lattice:
         + `a < x` and `b < x` imply `a lub b < x` for all `a` and `b` 
         """
         n = len(self)
-        test_pairs = tuple(combinations(range(n), 2))
-        return [x for x in range(1, n) if all((x == a or x == b or x != self.lubs[a][b] for a, b in test_pairs))]
+        # Alternative if the list of covers is known
+        if self._covers is not None:
+            return [x for x, c in enumerate(self._covers) if len(c) == 1]
+        else:
+            test_pairs = tuple(combinations(range(n), 2))
+            return [x for x in range(1, n) if all((x == a or x == b or x != self.lubs[a][b] for a, b in test_pairs))]
 
     @property
     def space_functions(self):

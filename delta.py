@@ -844,6 +844,48 @@ def delta_plus_jies(lattice: Lattice, functions, jie_s=None):
         result[j] = lattice.glb(fn[j] for fn in functions)
     return [lattice.lub(result[j] for j in jie_s if lattice.lattice[c][j] == 1) if v is None else v for c, v in enumerate(result)]
 
+def dmeet_jies(lattice, functions, jie_s=None, covers=None):
+    """ Like `delta_plus_jies`.
+
+    This implementation takes advantage of the join irreducible
+    elements to reduce the number of operations.
+
+    Args:
+      lattice: A Lattice instance.
+      functions: A list of space functions.
+      jie_s: A list of Join-Irreducible elements. If `None`, it generates such list.
+      covers: A list of cover relations. If `None`, it generates such list.
+    """
+    fn_n = len(functions)
+    if fn_n == 1:
+        return functions[0]
+    if covers is None:
+        covers = lattice.covers
+    if jie_s is None:
+        jie_s = lattice.join_irreducibles
+    n = len(lattice)
+    result = [None for _ in range(n)]
+    # Mark bottom
+    result[0] = 0
+    # Mark ji
+    for j in jie_s:
+        result[j] = lattice.glb(fn[j] for fn in functions)
+    # Solve for the rest
+    work = [c for c,v in enumerate(result) if v is None]
+    while work:
+        # Remove the last element from the stack
+        e = work.pop()
+        if result[e] is None:
+            if result[covers[e][0]] is None or result[covers[e][1]] is None:
+                work.append(e)
+                if result[covers[e][0]] is None:
+                    work.append(covers[e][0])
+                if result[covers[e][1]] is None:
+                    work.append(covers[e][1])
+            else:
+                result[e] = lattice.lub((result[covers[e][0]], result[covers[e][1]]))
+    return result
+
 # ######################################
 
 # ######################################

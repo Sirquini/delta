@@ -68,7 +68,7 @@ def write_test_results_csv(name, results):
 # #######################################
 
 from delta import TestResults, Delta, lattice_square, run_test_case, delta_n, random_space_function, all_space_functions, delta_plus_jies 
-from generation import progress_bar
+from generation import ProgressRange, progress_bar
 
 class DeltaTest:
     def __init__(self, name, fn, skip_times=False):
@@ -715,10 +715,121 @@ def run_failling_foo():
 
     run(lattices[8013726431884705816], test_functions=test_functions, fns_file=from_rel_path("generated", "sf_8013726431884705816.in"))
 
+def run_arbitrary_distributives():
+    import matplotlib.pyplot as plt
+    import pandas as pd
+
+    from lattice import random_lattice
+    from delta import space_function, apply_fns
+    from generation import is_distributive
+
+    # Functions to test
+    def dmeet_imply(lattice, functions):
+        """ Like `delta_plus_imply` but counting LUBs and GLBs.
+        
+        Limited to at most 2 functions.
+        Returns:
+            A tuple of (result, #LUBs, #GLBs)
+        """
+        fn_n = len(functions)
+        if fn_n == 1:
+            return (functions [0], 0, 0)
+        if fn_n == 2:
+            n = len(lattice)
+            results = [(lattice.glb(
+                lattice.lub(apply_fns(functions, (i, lattice.imply(i, c)))) for i in range(n) if lattice.lattice[c][i] == 1
+            ), sum(1 for i in range(n) if lattice.lattice[c][i] == 1)) for c in range(n)]
+            counter = sum(pair[1] for pair in results)
+            return ([pair[0] for pair in results], counter, counter)
+
+    def dmeet_jies(lattice, functions, jie_s=None, covers=None):
+        """ Like `delta_plus_jies` but counting LUBs and GLBs.
+        
+        Limited to at most 2 functions.
+        Returns:
+            A tuple of (result, #LUBs, #GLBs)
+        """
+        fn_n = len(functions)
+        if fn_n == 1:
+            return (functions[0], 0, 0)
+        if covers is None:
+            covers = lattice.covers
+        if jie_s is None:
+            jie_s = lattice.join_irreducibles
+        n = len(lattice)
+        glbs = len(jie_s)
+        lubs = 0
+        result = [None for _ in range(n)]
+        # Mark bottom
+        result[0] = 0
+        # Mark ji
+        for j in jie_s:
+            result[j] = lattice.glb(fn[j] for fn in functions)
+        # Solve for the rest
+        work = [c for c,v in enumerate(result) if v is None]
+        while work:
+            # Remove the last element from the stack
+            e = work.pop()
+            if result[e] is None:
+                if result[covers[e][0]] is None or result[covers[e][1]] is None:
+                    work.append(e)
+                    if result[covers[e][0]] is None:
+                        work.append(covers[e][0])
+                    if result[covers[e][1]] is None:
+                        work.append(covers[e][1])
+                else:
+                    result[e] = lattice.lub((result[covers[e][0]], result[covers[e][1]]))
+                    lubs += 1
+        return (result, lubs, glbs)
+
+    lattices = []
+
+    for _ in ProgressRange(10, status='Generation'):
+        candidate = Lattice.from_covers(random_lattice(10, 0.95))
+        while not is_distributive(candidate):
+            candidate = Lattice.from_covers(random_lattice(10, 0.95))
+        lattices.append(candidate)
+
+    results = {
+            "id": [],
+            "nodes": [],
+            "time_imply": [],
+            "time_jies": [],
+            "LUBs_imply": [],
+            "LUBs_jies": [],
+            "GLBs_imply": [],
+            "GLBs_jies": []
+    }
+
+    for i, l in ProgressRange.from_iter(enumerate(lattices), len(lattices), status='Running'):
+        covers = l.covers
+        jies = l.join_irreducibles
+        n = len(l)
+        for _ in range(100):
+            fns = [space_function(l) for _ in range(2)]
+            dmeet_jies_results = bench_test(dmeet_jies)(l, fns, jie_s=jies, covers=covers)
+            dmeet_imply_results = bench_test(dmeet_imply)(l, fns)
+            results["id"].append(i),
+            results["nodes"].append(n),
+            results["time_imply"].append(dmeet_imply_results[0]),
+            results["time_jies"].append(dmeet_jies_results[0]),
+            results["LUBs_imply"].append(dmeet_imply_results[1][1]),
+            results["LUBs_jies"].append(dmeet_jies_results[1][1]),
+            results["GLBs_imply"].append(dmeet_imply_results[1][2]),
+            results["GLBs_jies"].append(dmeet_jies_results[1][2])
+
+    distributive_data = pd.DataFrame(results).groupby("id").mean().loc[:, ["time_imply", "time_jies"]]
+    distributive_data.apply(lambda x: x*1000).plot.bar()
+    plt.ylabel("Average runtime [ms]")
+    plt.xlabel("Distributive lattices of size 10")
+    plt.legend(["DMeet", "DMeet+"])
+    plt.show()
+
 if __name__ == "__main__":
     # run_full_tests(size_limit=10)
     # run_random()
     # run_powerset(exponent=3, verbose=True, test_functions=[(0,4,5,6,7,7,7,7),(0,3,2,1,6,5,4,7)])
-    run_full_powerset_tests()
+    # run_full_powerset_tests()
     # run_arbitrary_lattices([4, 5, 6, 7, 8, 9, 10])
     # run_arbitrary_lattices([4, 8, 12, 16, 24, 28, 32], fixed_lattice=True)
+    run_arbitrary_distributives()

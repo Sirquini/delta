@@ -75,6 +75,22 @@ class DeltaTest:
         self.fn = fn
         self.test_results = TestResults(name, skip_times)
 
+def bench_test(test_fn):
+    """Calls `test_fn` and reports the execution time.
+
+    Args:
+      test_fn: The test function to time.
+
+    Output:
+      A tuple with the time and the result of calling `test_fn`.
+    """
+    def timed_function(*args, **kwargs):
+        counter = perf_counter()
+        values = test_fn(*args, **kwargs)
+        counter = perf_counter() - counter
+        return (counter, values)
+    return timed_function
+
 # #######################################
 
 # #######################################

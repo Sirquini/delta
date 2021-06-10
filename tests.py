@@ -86,6 +86,14 @@ class TestLatticeClass(unittest.TestCase):
         ]
         self.assertEqual(actual, expected)
 
+    def test__topological_sort(self):
+        actual = self.lattice._topological_sort()
+        expected = (0, 1, 2, 3, 5, 6, 4, 7)
+
+    def test_topological_order(self):
+        actual = self.lattice.topological_order
+        expected = (0, 1, 2, 3, 5, 6, 4, 7)
+
     def test_join_irreducible_elements(self):
         actual = self.lattice.join_irreducible_elements()
         expected = [1, 2, 3, 5, 6]

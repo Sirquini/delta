@@ -1,6 +1,7 @@
 import os
 import random
 from itertools import combinations, product
+from collections import deque
 from graphviz import Digraph
 
 # ######################################
@@ -34,6 +35,7 @@ class Lattice:
         self._impls = None
         self._join_irreducibles = None
         self._covers = None
+        self._topological_order = None
 
     def __len__(self):
         """Returns the number of nodes in the lattice."""
@@ -69,6 +71,20 @@ class Lattice:
     def is_fn_distributive(self, fn, test_pairs):
         """Checks if a given function `fn` is distributive."""
         return all(fn[self.lubs[t0][t1]] == self.lubs[fn[t0]][fn[t1]] for t0, t1 in test_pairs)
+
+    @property
+    def topological_order(self):
+        """Returns a list with a linear order, from bottom to top, of the lattice.
+
+        Comparable elements preserve their order. Incomparable elements are given
+        an arbitrary order.
+
+        The actual `topological_order` is only generated once, feel free
+        to refer to this property multiple times.
+        """
+        if self._topological_order is None:
+            self._topological_order = self._topological_sort()
+        return self._topological_order
 
     def lub(self, iterable):
         """Least Upper Bound of `iterable`."""
@@ -189,6 +205,27 @@ class Lattice:
         """Calculates the matrix of implications for the lattice."""
         N = len(self)
         return [[self._pair_implication(i, j) for j in range(N)] for i in range(N)]
+    
+    def _topological_sort(self):
+        """Calculates a topological ascending order for the lattice."""
+        result = []
+        n = len(self)
+        
+        if n == 1:
+            return result
+        work = deque((0,), n)
+
+        # Covers are used implicitly
+        edges = [len(cover) for cover in self.covers]
+        while work:
+            e = work.popleft()
+            result.append(e)
+            for node, covers in enumerate(self.covers):
+                if e in covers:
+                    edges[node] -= 1
+                    if edges[node] == 0:
+                        work.append(node)
+        return tuple(result)
     
     def _pair_implication(self, a, b):
         """Calculates the Heyting implication of the pair (`a`, `b`)."""

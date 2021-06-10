@@ -335,7 +335,7 @@ class TestDeltaFunctions(unittest.TestCase):
             actual = lat.delta_partition(self.lattice, scenario["fns"])
             self.assertEqual(actual, scenario["exp"])
 
-        jies = self.lattice.join_irreducible_elements()
+        jies = self.lattice.join_irreducibles
         actual = lat.delta_partition(self.lattice, scenario["fns"], jies)
         self.assertEqual(actual, scenario["exp"])
 
@@ -344,8 +344,24 @@ class TestDeltaFunctions(unittest.TestCase):
             actual = delta.delta_plus_jies(self.lattice, scenario["fns"])
             self.assertEqual(actual, scenario["exp"])
 
-        jies = self.lattice.join_irreducible_elements()
+        jies = self.lattice.join_irreducibles
         actual = delta.delta_plus_jies(self.lattice, scenario["fns"], jies)
+        self.assertEqual(actual, scenario["exp"])
+    
+    def test_dmeet_jies(self):
+        for scenario in self.scenarios:
+            actual = delta.dmeet_jies(self.lattice, scenario["fns"])
+            self.assertEqual(actual, scenario["exp"])
+
+        jies = self.lattice.join_irreducibles
+        actual = delta.dmeet_jies(self.lattice, scenario["fns"], jies)
+        self.assertEqual(actual, scenario["exp"])
+
+        covers = self.lattice.covers
+        actual = delta.dmeet_jies(self.lattice, scenario["fns"], covers=covers)
+        self.assertEqual(actual, scenario["exp"])
+
+        actual = delta.dmeet_jies(self.lattice, scenario["fns"], jies, covers)
         self.assertEqual(actual, scenario["exp"])
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@ from enum import Enum
 from itertools import product
 from itertools import combinations
 from itertools import permutations
+from collections import deque
 from time import perf_counter
 
 from lattice import Lattice
@@ -871,7 +872,7 @@ def dmeet_jies(lattice, functions, jie_s=None, covers=None):
     for j in jie_s:
         result[j] = lattice.glb(fn[j] for fn in functions)
     # Solve for the rest
-    work = [c for c,v in enumerate(result) if v is None]
+    work = deque((c for c,v in enumerate(result) if v is None))
     while work:
         # Remove the last element from the stack
         e = work.pop()

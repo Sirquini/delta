@@ -875,14 +875,14 @@ def dmeet_jies(lattice, functions, jie_s=None, covers=None):
     work = deque((c for c,v in enumerate(result) if v is None))
     while work:
         # Remove the last element from the stack
-        e = work.pop()
+        e = work.popleft()
         if result[e] is None:
             if result[covers[e][0]] is None or result[covers[e][1]] is None:
-                work.append(e)
                 if result[covers[e][0]] is None:
                     work.append(covers[e][0])
                 if result[covers[e][1]] is None:
                     work.append(covers[e][1])
+                work.append(e)
             else:
                 result[e] = lattice.lub((result[covers[e][0]], result[covers[e][1]]))
     return result

@@ -285,6 +285,11 @@ class TestHelperFunctions(unittest.TestCase):
         ]
         self.assertEqual(actual, expected)
 
+    def test_random_space_function(self):
+        lattice = lat.Lattice.from_covers([[], [0], [0], [1, 2], [0], [1, 4], [2, 4], [3, 5, 6]])
+        for _ in range(100):
+            self.assertIn(delta.space_function(lattice), lattice.space_functions)
+
 class TestDeltaFunctions(unittest.TestCase):
     def setUp(self):
         self.lattice = lat.Lattice([

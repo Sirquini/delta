@@ -237,7 +237,7 @@ def space_function(lattice: Lattice):
     for i in range(n):
         if i not in ji_s:
             result[i] = lattice.lub(result[j] for j in ji_s if lattice.lattice[i][j] == 1) 
-    return result
+    return tuple(result)
 
 def decode_powerset_function(lattice, encoded_fn, atoms=None):
     """Expands an atoms-mapping to a space function.

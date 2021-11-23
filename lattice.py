@@ -194,6 +194,22 @@ class Lattice:
             for pos, val in enumerate(space_function):
                 graph.edge(str(pos), str(val))
         return graph
+    
+    def space_functions_iter(self):
+        """Returns an iterator of space functions, based on the lattice."""
+        if self._space_functions is None:
+            return iter(self._generate_space_functions_iter())
+        return iter(self._space_functions)
+
+    def _generate_space_functions_iter(self):
+        """Returns an iterator of space functions, based on the lattice."""
+        N = len(self)
+        test_pairs = tuple(combinations(range(N), 2))
+        for fn in product(range(N), repeat=N-1):
+            result = (0,) + fn
+            if self.is_fn_distributive(result, test_pairs):
+                yield result
+
 
     def _generate_space_functions(self):
         """Generates a list of space functions, based on the lattice."""

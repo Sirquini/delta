@@ -85,7 +85,7 @@ class ProgressRange():
             status (str, optional): A message next to the progress bar.
         '''
         if stop == 0 and hasattr(it, "__len__"):
-                progress = cls(len(it), status=status)
+            progress = cls(len(it), status=status)
         else:
             progress = cls(stop, status=status)
         progress.sequence = iter(it)
